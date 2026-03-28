@@ -1,6 +1,7 @@
 package com.webssh.ui.screens
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.webssh.viewmodel.UiState
 import com.webssh.viewmodel.WebSSHViewModel
@@ -13,9 +14,10 @@ sealed class Screen {
 }
 
 @Composable
-fun MainNavigation(
-    viewModel: WebSSHViewModel = viewModel(factory = WebSSHViewModelFactory(android.content.Context))
-) {
+fun MainNavigation() {
+    val context = LocalContext.current
+    val viewModel: WebSSHViewModel = viewModel(factory = WebSSHViewModelFactory(context))
+    
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Login) }
 
     val loginState by viewModel.loginState.collectAsState()

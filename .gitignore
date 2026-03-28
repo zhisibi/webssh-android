@@ -26,3 +26,4 @@ release/
 *.swp
 .mtj.tmp/
 .gradle-wrapper/
+app/build/

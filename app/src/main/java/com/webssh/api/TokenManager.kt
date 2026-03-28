@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "webssh_prefs")
@@ -24,6 +25,10 @@ class TokenManager(private val context: Context) {
 
     val baseUrl: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[BASE_URL_KEY] ?: "http://192.168.100.20:3000"
+    }
+
+    suspend fun getToken(): String? {
+        return token.first()
     }
 
     suspend fun saveToken(token: String) {

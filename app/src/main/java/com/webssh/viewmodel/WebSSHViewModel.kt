@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.webssh.api.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.io.File
 
 sealed class UiState<out T> {
     object Idle : UiState<Nothing>()
@@ -110,7 +109,8 @@ class WebSSHViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val response = api?.getServers()
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.getServers("Bearer $token")
                 if (response?.isSuccessful == true) {
                     _servers.value = response.body() ?: emptyList()
                 }
@@ -146,7 +146,8 @@ class WebSSHViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val response = api?.listFiles(server.id, _currentPath.value)
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.listFiles("Bearer $token", server.id, _currentPath.value)
                 if (response?.isSuccessful == true) {
                     val fileList = response.body()?.files ?: emptyList()
                     _files.value = sortFiles(fileList)
@@ -189,7 +190,9 @@ class WebSSHViewModel(
         val server = _currentServer.value ?: return
         viewModelScope.launch {
             try {
+                val token = tokenManager.token.first() ?: return@launch
                 val response = api?.createFolder(
+                    "Bearer $token",
                     MkdirRequest(server.id, _currentPath.value, name)
                 )
                 if (response?.isSuccessful == true) {
@@ -206,7 +209,9 @@ class WebSSHViewModel(
         val fullPath = if (_currentPath.value == "/") "/$name" else "${_currentPath.value}/$name"
         viewModelScope.launch {
             try {
+                val token = tokenManager.token.first() ?: return@launch
                 val response = api?.deleteFile(
+                    "Bearer $token",
                     DeleteRequest(server.id, fullPath, type)
                 )
                 if (response?.isSuccessful == true) {
@@ -224,7 +229,9 @@ class WebSSHViewModel(
         val newPath = if (_currentPath.value == "/") "/$newName" else "${_currentPath.value}/$newName"
         viewModelScope.launch {
             try {
+                val token = tokenManager.token.first() ?: return@launch
                 val response = api?.renameFile(
+                    "Bearer $token",
                     RenameRequest(server.id, oldPath, newPath)
                 )
                 if (response?.isSuccessful == true) {

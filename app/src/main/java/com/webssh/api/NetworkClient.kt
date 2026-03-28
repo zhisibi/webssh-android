@@ -1,6 +1,6 @@
 package com.webssh.api
 
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 class NetworkClient(private val tokenManager: TokenManager) {
 
     private val authInterceptor = Interceptor { chain ->
-        val token = tokenManager.token.first()
+        val token = runBlocking { tokenManager.getToken() }
         val request = if (token != null) {
             chain.request().newBuilder()
                 .addHeader("Authorization", "Bearer $token")
