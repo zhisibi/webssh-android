@@ -12,18 +12,22 @@ html, body {
   position: fixed; top: 0; left: 0;
 }
 #terminal {
-  width: 100%; background: #1e1e1e;
-  /* height set dynamically by JS */
+  width: 100%; height: 65vh;
+  background: #1e1e1e;
 }
 .xterm { padding: 4px; }
 
+/* Toolbar: fixed at 65% from top (= 35% from bottom) */
 #toolbar {
-  position: fixed; bottom: 0; left: 0; right: 0;
+  position: fixed;
+  top: 65vh;
+  left: 0; right: 0;
   background: #2d2d2d; height: 40px;
   display: flex; align-items: center;
   padding: 3px 4px; gap: 3px;
   overflow-x: auto; overflow-y: hidden;
   border-top: 1px solid #555;
+  border-bottom: 1px solid #555;
   z-index: 10;
 }
 #toolbar::-webkit-scrollbar { height: 0; }
@@ -82,11 +86,9 @@ html, body {
 (function() {
   var statusEl = document.getElementById('status');
   var termEl = document.getElementById('terminal');
-  var TOOLBAR_H = 40;
   var wsUrl = '%WS_URL%';
   var ctrlMode = false;
   var ws = null;
-  var fitBusy = false;
 
   try {
     var term = new Terminal({
@@ -101,35 +103,19 @@ html, body {
     term.open(termEl);
     statusEl.style.display = 'none';
 
-    // ===== KEY FIX: dynamic height =====
-    function getVisibleH() {
-      return window.visualViewport
-        ? window.visualViewport.height
-        : window.innerHeight;
+    // Terminal height = 65% of full screen (always)
+    function setupSize() {
+      var screenH = window.screen.height;
+      var termH = Math.floor(screenH * 0.65);
+      termEl.style.height = termH + 'px';
+      setTimeout(function() {
+        try { fitAddon.fit(); } catch(e) {}
+        try { term.scrollToBottom(); } catch(e) {}
+      }, 100);
     }
 
-    function resize() {
-      var h = getVisibleH() - TOOLBAR_H;
-      if (h < 50) h = 50;
-      termEl.style.height = h + 'px';
-      if (!fitBusy) {
-        fitBusy = true;
-        requestAnimationFrame(function() {
-          try { fitAddon.fit(); } catch(e) {}
-          try { term.scrollToBottom(); } catch(e) {}
-          fitBusy = false;
-        });
-      }
-    }
-
-    resize();
-
-    // visualViewport fires when keyboard appears/disappears
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', resize);
-      window.visualViewport.addEventListener('scroll', resize);
-    }
-    window.addEventListener('resize', resize);
+    setupSize();
+    window.addEventListener('resize', setupSize);
 
     // Auto-scroll on output
     var _w = term.write.bind(term);
@@ -161,7 +147,6 @@ html, body {
         statusEl.style.display='none';
         try{AndroidBridge.onConnected();}catch(e){}
         try{ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}));}catch(e){}
-        setTimeout(resize,500);
       };
       ws.onmessage=function(ev){
         try{var m=JSON.parse(ev.data);
