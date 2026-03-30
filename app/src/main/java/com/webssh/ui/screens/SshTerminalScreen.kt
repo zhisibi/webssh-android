@@ -97,6 +97,7 @@ fun SshTerminalScreen(
                             settings.loadWithOverviewMode = true
                             settings.setSupportZoom(false)
                             settings.mediaPlaybackRequiresUserGesture = false
+                            settings.loadWithOverviewMode = false
 
                             webChromeClient = WebChromeClient()
                             webViewClient = object : WebViewClient() {

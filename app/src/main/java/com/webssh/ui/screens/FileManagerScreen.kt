@@ -140,7 +140,7 @@ fun FileManagerScreen(
                             Icon(if (showSearch) Icons.Default.Close else Icons.Default.Search, contentDescription = "搜索")
                         }
                         IconButton(onClick = onOpenSshTerminal) {
-                            Icon(Icons.Default.Computer, contentDescription = "SSH终端")
+                            Icon(Icons.Default.Terminal, contentDescription = "SSH终端")
                         }
                         IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
                             Icon(Icons.Default.UploadFile, contentDescription = "上传文件")

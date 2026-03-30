@@ -153,7 +153,7 @@ fun ServerCard(
 
                 // SSH terminal button
                 FilledTonalIconButton(onClick = onSshClick) {
-                    Icon(Icons.Default.Computer, "SSH终端", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Terminal, "SSH终端", tint = MaterialTheme.colorScheme.primary)
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))

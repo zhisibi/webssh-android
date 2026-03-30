@@ -590,12 +590,10 @@ class WebSSHViewModel(
         viewModelScope.launch {
             _settingsState.value = UiState.Loading
             try {
-                val token = tokenManager.token.first() ?: return@launch
-                val response = api?.backupServers("Bearer $token")
+                val response = api?.backupServers()
                 if (response?.isSuccessful == true) {
                     val body = response.body()
                     if (body != null && body.success) {
-                        // Convert servers list to JSON string for sharing
                         val gson = com.google.gson.Gson()
                         _backupContent.value = gson.toJson(body)
                         _settingsState.value = UiState.Success("备份成功")

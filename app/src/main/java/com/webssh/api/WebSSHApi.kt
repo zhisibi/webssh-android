@@ -91,9 +91,7 @@ interface WebSSHApi {
     ): Response<BaseResponse>
 
     @GET("api/admin/backup")
-    suspend fun backupServers(
-        @Header("Authorization") token: String
-    ): Response<BackupResponse>
+    suspend fun backupServers(): Response<BackupResponse>
 
     @POST("api/admin/restore")
     suspend fun restoreServers(
