@@ -1,6 +1,8 @@
 package com.webssh.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,6 +27,7 @@ fun MainNavigation() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Login) }
     var editingServer by remember { mutableStateOf<com.webssh.api.Server?>(null) }
     var sshBackTarget by remember { mutableStateOf<Screen>(Screen.ServerList) }
+    var showExitDialog by remember { mutableStateOf(false) }
 
     val loginState by viewModel.loginState.collectAsState()
     val baseUrl by viewModel.baseUrl.collectAsState()
@@ -45,6 +48,9 @@ fun MainNavigation() {
     val fileContent by viewModel.fileContent.collectAsState()
     val settingsState by viewModel.settingsState.collectAsState()
     val backupContent by viewModel.backupContent.collectAsState()
+    val rememberMe by viewModel.rememberMe.collectAsState()
+    val savedUsername by viewModel.savedUsername.collectAsState()
+    val savedPassword by viewModel.savedPassword.collectAsState()
 
     // Show toast messages
     LaunchedEffect(toastMessage) {
@@ -57,12 +63,8 @@ fun MainNavigation() {
     // React to login state changes
     LaunchedEffect(loginState) {
         when (loginState) {
-            is UiState.Success -> {
-                currentScreen = Screen.ServerList
-            }
-            is UiState.Idle -> {
-                currentScreen = Screen.Login
-            }
+            is UiState.Success -> { currentScreen = Screen.ServerList }
+            is UiState.Idle -> { currentScreen = Screen.Login }
             else -> {}
         }
     }
@@ -72,12 +74,53 @@ fun MainNavigation() {
         FilePreviewDialog(filename = "文件预览", content = fileContent, onDismiss = { viewModel.clearFileContent() })
     }
 
+    // ===== System Back Button Handling =====
+    BackHandler(enabled = true) {
+        when (currentScreen) {
+            Screen.ServerList -> { showExitDialog = true }
+            Screen.FileManager -> {
+                if (batchMode) {
+                    viewModel.clearSelection()
+                } else {
+                    currentScreen = Screen.ServerList
+                }
+            }
+            Screen.SshTerminal -> { currentScreen = sshBackTarget }
+            Screen.AddEditServer -> { currentScreen = Screen.ServerList }
+            Screen.Settings -> { currentScreen = Screen.ServerList }
+            Screen.Login -> { /* do nothing, back on login */ }
+        }
+    }
+
+    // Exit confirmation dialog
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("退出应用") },
+            text = { Text("确定要退出 WebSSH 吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitDialog = false
+                    viewModel.logout()
+                    // Exit the app
+                    (context as? android.app.Activity)?.finish()
+                }) { Text("退出", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
     when (currentScreen) {
         Screen.Login -> {
             LoginScreen(
                 baseUrl = baseUrl,
+                savedUsername = savedUsername,
+                savedPassword = savedPassword,
+                rememberMe = rememberMe,
                 onBaseUrlChange = { viewModel.setBaseUrl(it) },
-                onLogin = { u, p -> viewModel.login(u, p) },
+                onLogin = { u, p, r -> viewModel.login(u, p, r) },
                 loginState = loginState
             )
         }

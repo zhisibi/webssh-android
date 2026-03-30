@@ -81,6 +81,16 @@ class WebSSHViewModel(
     private val _backupContent = MutableStateFlow<String?>(null)
     val backupContent: StateFlow<String?> = _backupContent.asStateFlow()
 
+    // Remember me
+    private val _rememberMe = MutableStateFlow(false)
+    val rememberMe: StateFlow<Boolean> = _rememberMe.asStateFlow()
+
+    private val _savedUsername = MutableStateFlow("")
+    val savedUsername: StateFlow<String> = _savedUsername.asStateFlow()
+
+    private val _savedPassword = MutableStateFlow("")
+    val savedPassword: StateFlow<String> = _savedPassword.asStateFlow()
+
     // Filtered servers with tag filter
     val filteredServers: StateFlow<List<Server>> = combine(_servers, _tagFilter) { servers, filter ->
         if (filter.isNullOrBlank()) servers
@@ -101,6 +111,12 @@ class WebSSHViewModel(
                 _token.value = t
             }
         }
+        // Load saved credentials
+        viewModelScope.launch {
+            _rememberMe.value = tokenManager.getRememberMe()
+            _savedUsername.value = tokenManager.getSavedUsername()
+            _savedPassword.value = tokenManager.getSavedPassword()
+        }
     }
 
     fun clearToast() { _toastMessage.value = null }
@@ -114,7 +130,7 @@ class WebSSHViewModel(
 
     // ==================== Auth ====================
 
-    fun login(username: String, password: String) {
+    fun login(username: String, password: String, remember: Boolean = false) {
         viewModelScope.launch {
             _loginState.value = UiState.Loading
             try {
@@ -123,6 +139,11 @@ class WebSSHViewModel(
                     val token = response.body()?.token
                     if (token != null) {
                         tokenManager.saveToken(token)
+                        // Save credentials if remember is checked
+                        tokenManager.saveCredentials(username, password, remember)
+                        _rememberMe.value = remember
+                        _savedUsername.value = if (remember) username else ""
+                        _savedPassword.value = if (remember) password else ""
                         _loginState.value = UiState.Success(Unit)
                         loadServers()
                     } else {
@@ -572,11 +593,17 @@ class WebSSHViewModel(
                 val token = tokenManager.token.first() ?: return@launch
                 val response = api?.backupServers("Bearer $token")
                 if (response?.isSuccessful == true) {
-                    val content = response.body()?.string()
-                    _backupContent.value = content
-                    _settingsState.value = UiState.Success("备份成功")
+                    val body = response.body()
+                    if (body != null && body.success) {
+                        // Convert servers list to JSON string for sharing
+                        val gson = com.google.gson.Gson()
+                        _backupContent.value = gson.toJson(body)
+                        _settingsState.value = UiState.Success("备份成功")
+                    } else {
+                        _settingsState.value = UiState.Error(body?.message ?: "备份失败")
+                    }
                 } else {
-                    _settingsState.value = UiState.Error("备份失败")
+                    _settingsState.value = UiState.Error("备份失败: ${response?.code()}")
                 }
             } catch (e: Exception) {
                 _settingsState.value = UiState.Error(e.message ?: "网络错误")

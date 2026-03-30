@@ -93,7 +93,7 @@ interface WebSSHApi {
     @GET("api/admin/backup")
     suspend fun backupServers(
         @Header("Authorization") token: String
-    ): Response<okhttp3.ResponseBody>
+    ): Response<BackupResponse>
 
     @POST("api/admin/restore")
     suspend fun restoreServers(
@@ -152,3 +152,4 @@ data class DownloadBatchRequest(val serverId: Long, val paths: List<String>)
 data class UploadRequest(val serverId: Long, val path: String, val filename: String, val content: String)
 data class ChangePasswordRequest(val oldPassword: String, val newPassword: String)
 data class RestoreRequest(val content: String)
+data class BackupResponse(val success: Boolean, val servers: List<Server>? = null, val message: String? = null)
