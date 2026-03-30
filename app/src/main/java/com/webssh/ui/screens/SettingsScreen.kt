@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.webssh.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -24,9 +25,11 @@ import com.webssh.viewmodel.UiState
 fun SettingsScreen(
     settingsState: UiState<String>,
     backupContent: String?,
+    biometricEnabled: Boolean,
     onChangePassword: (String, String) -> Unit,
     onBackup: () -> Unit,
     onRestore: (String) -> Unit,
+    onToggleBiometric: (Boolean) -> Unit,
     onClearState: () -> Unit,
     onClearBackup: () -> Unit,
     onBack: () -> Unit
@@ -107,9 +110,25 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = { Text("修改密码") },
                     supportingContent = { Text("修改管理员登录密码") },
-                    leadingContent = { Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary) },
+                    leadingContent = { Icon(Icons.Default.Settings, null, tint = MaterialTheme.colorScheme.primary) },
                     trailingContent = { Icon(Icons.Default.ChevronRight, null) },
                     modifier = Modifier.clickable { showPasswordDialog = true }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Security
+            Text("安全", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                ListItem(
+                    headlineContent = { Text("指纹登录") },
+                    supportingContent = { Text(if (biometricEnabled) "已启用" else "未启用 - 登录后可开启") },
+                    leadingContent = { Text("🔐", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp)) },
+                    trailingContent = {
+                        Switch(checked = biometricEnabled, onCheckedChange = { onToggleBiometric(it) })
+                    }
                 )
             }
 

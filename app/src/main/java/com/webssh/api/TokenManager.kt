@@ -21,6 +21,7 @@ class TokenManager(private val context: Context) {
         private val REMEMBER_ME_KEY = booleanPreferencesKey("remember_me")
         private val SAVED_USERNAME_KEY = stringPreferencesKey("saved_username")
         private val SAVED_PASSWORD_KEY = stringPreferencesKey("saved_password")
+        private val BIOMETRIC_ENABLED_KEY = booleanPreferencesKey("biometric_enabled")
     }
 
     val token: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -41,6 +42,10 @@ class TokenManager(private val context: Context) {
 
     val savedPassword: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[SAVED_PASSWORD_KEY] ?: ""
+    }
+
+    val biometricEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[BIOMETRIC_ENABLED_KEY] ?: false
     }
 
     suspend fun getToken(): String? {
@@ -88,5 +93,15 @@ class TokenManager(private val context: Context) {
 
     suspend fun getSavedPassword(): String {
         return savedPassword.first()
+    }
+
+    suspend fun setBiometricEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[BIOMETRIC_ENABLED_KEY] = enabled
+        }
+    }
+
+    suspend fun getBiometricEnabled(): Boolean {
+        return biometricEnabled.first()
     }
 }

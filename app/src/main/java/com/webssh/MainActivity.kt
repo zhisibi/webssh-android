@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import com.webssh.ui.screens.MainNavigation
 import com.webssh.ui.theme.WebSSHTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : androidx.fragment.app.FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

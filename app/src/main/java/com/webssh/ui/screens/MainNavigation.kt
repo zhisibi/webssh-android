@@ -51,6 +51,34 @@ fun MainNavigation() {
     val rememberMe by viewModel.rememberMe.collectAsState()
     val savedUsername by viewModel.savedUsername.collectAsState()
     val savedPassword by viewModel.savedPassword.collectAsState()
+    val biometricEnabled by viewModel.biometricEnabled.collectAsState()
+
+    // Biometric prompt helper
+    fun showBiometricPrompt(onSuccess: () -> Unit) {
+        val executor = androidx.core.content.ContextCompat.getMainExecutor(context)
+        val callback = object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                super.onAuthenticationSucceeded(result)
+                onSuccess()
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                super.onAuthenticationError(errorCode, errString)
+            }
+        }
+        val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+            .setTitle("指纹验证")
+            .setSubtitle("使用指纹登录 WebSSH")
+            .setNegativeButtonText("取消")
+            .build()
+        // Use FragmentActivity for BiometricPrompt
+        val activity = context as? androidx.fragment.app.FragmentActivity
+        if (activity != null) {
+            val biometricPrompt = androidx.biometric.BiometricPrompt(activity, executor, callback)
+            biometricPrompt.authenticate(promptInfo)
+        } else {
+            Toast.makeText(context, "不支持指纹验证", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Show toast messages
     LaunchedEffect(toastMessage) {
@@ -119,8 +147,12 @@ fun MainNavigation() {
                 savedUsername = savedUsername,
                 savedPassword = savedPassword,
                 rememberMe = rememberMe,
+                biometricEnabled = biometricEnabled,
                 onBaseUrlChange = { viewModel.setBaseUrl(it) },
                 onLogin = { u, p, r -> viewModel.login(u, p, r) },
+                onBiometricLogin = {
+                    showBiometricPrompt { viewModel.biometricLogin() }
+                },
                 loginState = loginState
             )
         }
@@ -212,9 +244,17 @@ fun MainNavigation() {
             SettingsScreen(
                 settingsState = settingsState,
                 backupContent = backupContent,
+                biometricEnabled = biometricEnabled,
                 onChangePassword = { old, new -> viewModel.changePassword(old, new) },
                 onBackup = { viewModel.backupServers() },
                 onRestore = { content -> viewModel.restoreServers(content) },
+                onToggleBiometric = { enabled ->
+                    if (enabled) {
+                        showBiometricPrompt { viewModel.setBiometricEnabled(true) }
+                    } else {
+                        viewModel.setBiometricEnabled(false)
+                    }
+                },
                 onClearState = { viewModel.clearSettingsState() },
                 onClearBackup = { viewModel.clearBackupContent() },
                 onBack = { currentScreen = Screen.ServerList }

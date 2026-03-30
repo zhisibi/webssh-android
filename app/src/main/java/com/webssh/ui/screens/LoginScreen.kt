@@ -28,8 +28,10 @@ fun LoginScreen(
     savedUsername: String,
     savedPassword: String,
     rememberMe: Boolean,
+    biometricEnabled: Boolean,
     onBaseUrlChange: (String) -> Unit,
     onLogin: (String, String, Boolean) -> Unit,
+    onBiometricLogin: () -> Unit,
     loginState: UiState<Unit>
 ) {
     val focusManager = LocalFocusManager.current
@@ -153,6 +155,22 @@ fun LoginScreen(
                     )
                 } else {
                     Text("登录", fontSize = 16.sp)
+                }
+            }
+
+            // Fingerprint button (shown when biometric is enabled and has saved credentials)
+            if (biometricEnabled && savedUsername.isNotEmpty() && savedPassword.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { onBiometricLogin() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("🔐", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("指纹登录", fontSize = 16.sp)
                 }
             }
 

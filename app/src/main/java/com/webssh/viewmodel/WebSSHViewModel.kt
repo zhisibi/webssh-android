@@ -91,6 +91,13 @@ class WebSSHViewModel(
     private val _savedPassword = MutableStateFlow("")
     val savedPassword: StateFlow<String> = _savedPassword.asStateFlow()
 
+    private val _biometricEnabled = MutableStateFlow(false)
+    val biometricEnabled: StateFlow<Boolean> = _biometricEnabled.asStateFlow()
+
+    private val _triggerBiometric = MutableStateFlow(false)
+    val triggerBiometric: StateFlow<Boolean> = _triggerBiometric.asStateFlow()
+    fun consumeBiometricTrigger() { _triggerBiometric.value = false }
+
     // Filtered servers with tag filter
     val filteredServers: StateFlow<List<Server>> = combine(_servers, _tagFilter) { servers, filter ->
         if (filter.isNullOrBlank()) servers
@@ -116,6 +123,7 @@ class WebSSHViewModel(
             _rememberMe.value = tokenManager.getRememberMe()
             _savedUsername.value = tokenManager.getSavedUsername()
             _savedPassword.value = tokenManager.getSavedPassword()
+            _biometricEnabled.value = tokenManager.getBiometricEnabled()
         }
     }
 
@@ -631,6 +639,31 @@ class WebSSHViewModel(
     }
 
     fun clearBackupContent() { _backupContent.value = null }
+
+    // ==================== Biometric ====================
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            tokenManager.setBiometricEnabled(enabled)
+            _biometricEnabled.value = enabled
+            _toastMessage.value = if (enabled) "指纹登录已启用" else "指纹登录已关闭"
+        }
+    }
+
+    fun biometricLogin() {
+        // After biometric success, login with saved credentials
+        val u = _savedUsername.value
+        val p = _savedPassword.value
+        if (u.isNotBlank() && p.isNotBlank()) {
+            login(u, p, true)
+        } else {
+            _toastMessage.value = "请先登录并记住密码"
+        }
+    }
+
+    fun triggerBiometric() {
+        _triggerBiometric.value = true
+    }
 
     fun refresh() {
         loadFiles()
