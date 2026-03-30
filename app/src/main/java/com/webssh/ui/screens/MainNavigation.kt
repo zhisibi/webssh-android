@@ -46,6 +46,7 @@ fun MainNavigation() {
     val settingsState by viewModel.settingsState.collectAsState()
     val backupContent by viewModel.backupContent.collectAsState()
 
+    // Show toast messages
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -53,12 +54,20 @@ fun MainNavigation() {
         }
     }
 
+    // React to login state changes
     LaunchedEffect(loginState) {
-        if (loginState is UiState.Success) {
-            currentScreen = Screen.ServerList
+        when (loginState) {
+            is UiState.Success -> {
+                currentScreen = Screen.ServerList
+            }
+            is UiState.Idle -> {
+                currentScreen = Screen.Login
+            }
+            else -> {}
         }
     }
 
+    // File preview dialog
     if (fileContent != null && currentServer != null) {
         FilePreviewDialog(filename = "文件预览", content = fileContent, onDismiss = { viewModel.clearFileContent() })
     }
@@ -88,7 +97,6 @@ fun MainNavigation() {
                     sshBackTarget = Screen.ServerList
                     currentScreen = Screen.SshTerminal
                 },
-                onToggleEnabled = { server -> viewModel.toggleServerEnabled(server) },
                 onTagFilter = { tag -> viewModel.setTagFilter(tag) },
                 onAddServer = { editingServer = null; currentScreen = Screen.AddEditServer },
                 onEditServer = { server -> editingServer = server; currentScreen = Screen.AddEditServer },

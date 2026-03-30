@@ -158,13 +158,19 @@ class WebSSHViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val token = tokenManager.token.first() ?: return@launch
+                val token = tokenManager.token.first() ?: run {
+                    _toastMessage.value = "未登录"
+                    _isLoading.value = false
+                    return@launch
+                }
                 val response = api?.getServers("Bearer $token")
                 if (response?.isSuccessful == true) {
                     _servers.value = response.body() ?: emptyList()
+                } else {
+                    _toastMessage.value = "加载服务器列表失败: ${response?.code()}"
                 }
             } catch (e: Exception) {
-                // Handle error
+                _toastMessage.value = "网络错误: ${e.message}"
             }
             _isLoading.value = false
         }
@@ -230,28 +236,6 @@ class WebSSHViewModel(
         }
     }
 
-    fun toggleServerEnabled(server: Server) {
-        viewModelScope.launch {
-            try {
-                val token = tokenManager.token.first() ?: return@launch
-                val response = api?.updateServer(
-                    "Bearer $token",
-                    server.id,
-                    ServerRequest(
-                        server.name, server.host, server.port, server.username,
-                        server.authType, "", server.tags, !server.enabled
-                    )
-                )
-                if (response?.isSuccessful == true && response.body()?.success == true) {
-                    _toastMessage.value = if (!server.enabled) "已启用" else "已禁用"
-                    loadServers()
-                }
-            } catch (e: Exception) {
-                _toastMessage.value = e.message ?: "网络错误"
-            }
-        }
-    }
-
     // ==================== Tag Filter ====================
 
     fun setTagFilter(tag: String?) {
@@ -295,14 +279,20 @@ class WebSSHViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val token = tokenManager.token.first() ?: return@launch
+                val token = tokenManager.token.first() ?: run {
+                    _toastMessage.value = "未登录"
+                    _isLoading.value = false
+                    return@launch
+                }
                 val response = api?.listFiles("Bearer $token", server.id, _currentPath.value)
                 if (response?.isSuccessful == true) {
                     val fileList = response.body()?.files ?: emptyList()
                     _files.value = sortFiles(fileList)
+                } else {
+                    _toastMessage.value = "加载文件失败: ${response?.code()}"
                 }
             } catch (e: Exception) {
-                // Handle error
+                _toastMessage.value = "网络错误: ${e.message}"
             }
             _isLoading.value = false
         }

@@ -2,12 +2,10 @@ package com.webssh.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -31,7 +29,6 @@ fun ServerListScreen(
     currentTagFilter: String?,
     onServerClick: (Server) -> Unit,
     onSshClick: (Server) -> Unit,
-    onToggleEnabled: (Server) -> Unit,
     onTagFilter: (String?) -> Unit,
     onAddServer: () -> Unit,
     onEditServer: (Server) -> Unit,
@@ -111,7 +108,6 @@ fun ServerListScreen(
                             server = server,
                             onClick = { onServerClick(server) },
                             onSshClick = { onSshClick(server) },
-                            onToggleEnabled = { onToggleEnabled(server) },
                             onEdit = { onEditServer(server) }
                         )
                     }
@@ -126,13 +122,10 @@ fun ServerCard(
     server: Server,
     onClick: () -> Unit,
     onSshClick: () -> Unit,
-    onToggleEnabled: () -> Unit,
     onEdit: () -> Unit
 ) {
-    val alpha = if (server.enabled) 1f else 0.5f
-
     Card(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).alpha(alpha),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -158,19 +151,10 @@ fun ServerCard(
                     )
                 }
 
-                // SSH button
+                // SSH terminal button
                 FilledTonalIconButton(onClick = onSshClick) {
                     Icon(Icons.Default.Computer, "SSH终端", tint = MaterialTheme.colorScheme.primary)
                 }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                // Enable/disable toggle
-                Switch(
-                    checked = server.enabled,
-                    onCheckedChange = { onToggleEnabled() },
-                    modifier = Modifier.size(36.dp, 24.dp)
-                )
 
                 Spacer(modifier = Modifier.width(4.dp))
 
