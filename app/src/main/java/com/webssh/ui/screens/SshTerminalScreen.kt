@@ -79,7 +79,8 @@ fun SshTerminalScreen(
                     .replace("http://", "ws://")
                     .replace("https://", "wss://")
                     .trimEnd('/')
-                val wsUrl = "$wsBase/ws/ssh?serverId=$serverId&token=$token"
+                // Backend expects query param named "server" (not "serverId")
+                val wsUrl = "$wsBase/ws/ssh?server=$serverId&token=$token"
 
                 AndroidView(
                     factory = { context ->
