@@ -83,6 +83,23 @@ interface WebSSHApi {
         @Header("Authorization") token: String,
         @Body request: DownloadBatchRequest
     ): Response<okhttp3.ResponseBody>
+
+    @POST("api/admin/password")
+    suspend fun changePassword(
+        @Header("Authorization") token: String,
+        @Body request: ChangePasswordRequest
+    ): Response<BaseResponse>
+
+    @GET("api/admin/backup")
+    suspend fun backupServers(
+        @Header("Authorization") token: String
+    ): Response<okhttp3.ResponseBody>
+
+    @POST("api/admin/restore")
+    suspend fun restoreServers(
+        @Header("Authorization") token: String,
+        @Body request: RestoreRequest
+    ): Response<BaseResponse>
 }
 
 // Request/Response Models
@@ -131,3 +148,5 @@ data class DeleteRequest(val serverId: Long, val targetPath: String, val type: S
 data class RenameRequest(val serverId: Long, val oldPath: String, val newPath: String)
 data class DownloadBatchRequest(val serverId: Long, val paths: List<String>)
 data class UploadRequest(val serverId: Long, val path: String, val filename: String, val content: String)
+data class ChangePasswordRequest(val oldPassword: String, val newPassword: String)
+data class RestoreRequest(val content: String)

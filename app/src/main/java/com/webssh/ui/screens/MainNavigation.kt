@@ -14,6 +14,7 @@ sealed class Screen {
     object AddEditServer : Screen()
     object FileManager : Screen()
     object SshTerminal : Screen()
+    object Settings : Screen()
 }
 
 @Composable
@@ -23,23 +24,28 @@ fun MainNavigation() {
 
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Login) }
     var editingServer by remember { mutableStateOf<com.webssh.api.Server?>(null) }
-    // Track where SSH terminal was opened from, for back navigation
     var sshBackTarget by remember { mutableStateOf<Screen>(Screen.ServerList) }
 
     val loginState by viewModel.loginState.collectAsState()
     val baseUrl by viewModel.baseUrl.collectAsState()
     val token by viewModel.token.collectAsState()
     val servers by viewModel.servers.collectAsState()
+    val filteredServers by viewModel.filteredServers.collectAsState()
+    val allTags = remember(servers) { viewModel.getAllTags() }
+    val tagFilter by viewModel.tagFilter.collectAsState()
     val currentServer by viewModel.currentServer.collectAsState()
     val currentPath by viewModel.currentPath.collectAsState()
     val files by viewModel.files.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val sortField by viewModel.sortField.collectAsState()
     val sortAsc by viewModel.sortAsc.collectAsState()
+    val batchMode by viewModel.batchMode.collectAsState()
+    val selectedFiles by viewModel.selectedFiles.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
     val fileContent by viewModel.fileContent.collectAsState()
+    val settingsState by viewModel.settingsState.collectAsState()
+    val backupContent by viewModel.backupContent.collectAsState()
 
-    // Show toast messages
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -47,20 +53,14 @@ fun MainNavigation() {
         }
     }
 
-    // Check if already logged in
     LaunchedEffect(loginState) {
         if (loginState is UiState.Success) {
             currentScreen = Screen.ServerList
         }
     }
 
-    // File preview dialog
     if (fileContent != null && currentServer != null) {
-        FilePreviewDialog(
-            filename = "文件预览",
-            content = fileContent,
-            onDismiss = { viewModel.clearFileContent() }
-        )
+        FilePreviewDialog(filename = "文件预览", content = fileContent, onDismiss = { viewModel.clearFileContent() })
     }
 
     when (currentScreen) {
@@ -76,6 +76,9 @@ fun MainNavigation() {
         Screen.ServerList -> {
             ServerListScreen(
                 servers = servers,
+                filteredServers = filteredServers,
+                allTags = allTags,
+                currentTagFilter = tagFilter,
                 onServerClick = { server ->
                     viewModel.selectServer(server)
                     currentScreen = Screen.FileManager
@@ -85,34 +88,27 @@ fun MainNavigation() {
                     sshBackTarget = Screen.ServerList
                     currentScreen = Screen.SshTerminal
                 },
-                onAddServer = {
-                    editingServer = null
-                    currentScreen = Screen.AddEditServer
-                },
-                onEditServer = { server ->
-                    editingServer = server
-                    currentScreen = Screen.AddEditServer
-                },
+                onToggleEnabled = { server -> viewModel.toggleServerEnabled(server) },
+                onTagFilter = { tag -> viewModel.setTagFilter(tag) },
+                onAddServer = { editingServer = null; currentScreen = Screen.AddEditServer },
+                onEditServer = { server -> editingServer = server; currentScreen = Screen.AddEditServer },
                 onLogout = { viewModel.logout() },
-                onSettingsClick = { /* TODO: Settings */ }
+                onSettingsClick = { currentScreen = Screen.Settings }
             )
         }
 
         Screen.AddEditServer -> {
             AddEditServerScreen(
                 existingServer = editingServer,
-                onSave = { name, host, port, username, authType, password ->
+                onSave = { name, host, port, username, authType, password, tags ->
                     if (editingServer != null) {
-                        viewModel.updateServer(editingServer!!.id, name, host, port, username, authType, password)
+                        viewModel.updateServer(editingServer!!.id, name, host, port, username, authType, password, tags, editingServer!!.enabled)
                     } else {
-                        viewModel.addServer(name, host, port, username, authType, password)
+                        viewModel.addServer(name, host, port, username, authType, password, tags)
                     }
                     currentScreen = Screen.ServerList
                 },
-                onDelete = { id ->
-                    viewModel.deleteServer(id)
-                    currentScreen = Screen.ServerList
-                },
+                onDelete = { id -> viewModel.deleteServer(id); currentScreen = Screen.ServerList },
                 onBack = { currentScreen = Screen.ServerList }
             )
         }
@@ -126,25 +122,25 @@ fun MainNavigation() {
                     sortField = sortField,
                     sortAsc = sortAsc,
                     isLoading = isLoading,
+                    batchMode = batchMode,
+                    selectedFiles = selectedFiles,
                     onNavigateUp = { viewModel.navigateUp() },
-                    onNavigate = { name ->
-                        viewModel.navigateTo(if (currentPath == "/") "/$name" else "$currentPath/$name")
-                    },
+                    onNavigate = { name -> viewModel.navigateTo(if (currentPath == "/") "/$name" else "$currentPath/$name") },
                     onRefresh = { viewModel.refresh() },
                     onSortChange = { viewModel.setSortField(it) },
                     onCreateFolder = { viewModel.createFolder(it) },
                     onDeleteFile = { name, type -> viewModel.deleteFile(name, type) },
-                    onRenameFile = { oldName, newName -> viewModel.renameFile(oldName, newName) },
+                    onRenameFile = { old, new -> viewModel.renameFile(old, new) },
                     onDownloadFile = { name -> viewModel.downloadFile(name) },
                     onPreviewFile = { name -> viewModel.previewFile(name) },
                     onUploadFile = { name, content -> viewModel.uploadFile(name, content) },
-                    onOpenSshTerminal = {
-                        sshBackTarget = Screen.FileManager
-                        currentScreen = Screen.SshTerminal
-                    },
-                    onBack = {
-                        currentScreen = Screen.ServerList
-                    }
+                    onOpenSshTerminal = { sshBackTarget = Screen.FileManager; currentScreen = Screen.SshTerminal },
+                    onToggleBatchMode = { viewModel.toggleBatchMode() },
+                    onToggleFileSelection = { name -> viewModel.toggleFileSelection(name) },
+                    onSelectAll = { viewModel.selectAllFiles() },
+                    onBatchDownload = { viewModel.batchDownloadZip() },
+                    onClearSelection = { viewModel.clearSelection() },
+                    onBack = { currentScreen = Screen.ServerList }
                 )
             }
         }
@@ -159,6 +155,19 @@ fun MainNavigation() {
                     onBack = { currentScreen = sshBackTarget }
                 )
             }
+        }
+
+        Screen.Settings -> {
+            SettingsScreen(
+                settingsState = settingsState,
+                backupContent = backupContent,
+                onChangePassword = { old, new -> viewModel.changePassword(old, new) },
+                onBackup = { viewModel.backupServers() },
+                onRestore = { content -> viewModel.restoreServers(content) },
+                onClearState = { viewModel.clearSettingsState() },
+                onClearBackup = { viewModel.clearBackupContent() },
+                onBack = { currentScreen = Screen.ServerList }
+            )
         }
     }
 }

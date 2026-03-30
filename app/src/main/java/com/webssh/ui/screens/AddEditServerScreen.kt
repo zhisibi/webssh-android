@@ -28,7 +28,7 @@ import com.webssh.api.Server
 @Composable
 fun AddEditServerScreen(
     existingServer: Server? = null,
-    onSave: (name: String, host: String, port: Int, username: String, authType: String, password: String) -> Unit,
+    onSave: (name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String>) -> Unit,
     onDelete: ((Long) -> Unit)? = null,
     onBack: () -> Unit
 ) {
@@ -42,6 +42,7 @@ fun AddEditServerScreen(
     var authType by remember { mutableStateOf(existingServer?.authType ?: "password") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var tagsText by remember { mutableStateOf(existingServer?.tags?.joinToString(", ") ?: "") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val canSave = name.isNotBlank() && host.isNotBlank() && port.isNotBlank() && username.isNotBlank()
@@ -173,12 +174,26 @@ fun AddEditServerScreen(
                 )
             }
 
+            // 标签
+            OutlinedTextField(
+                value = tagsText,
+                onValueChange = { tagsText = it },
+                label = { Text("标签（用逗号分隔）") },
+                placeholder = { Text("生产, 重要") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = false,
+                maxLines = 2,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // 保存按钮
             Button(
                 onClick = {
-                    onSave(name, host, port.toIntOrNull() ?: 22, username, authType, password)
+                    val tags = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                    onSave(name, host, port.toIntOrNull() ?: 22, username, authType, password, tags)
                 },
                 modifier = Modifier
                     .fillMaxWidth()

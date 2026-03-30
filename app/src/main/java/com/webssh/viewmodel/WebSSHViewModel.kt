@@ -63,6 +63,30 @@ class WebSSHViewModel(
     private val _fileContent = MutableStateFlow<String?>(null)
     val fileContent: StateFlow<String?> = _fileContent.asStateFlow()
 
+    // Batch selection
+    private val _selectedFiles = MutableStateFlow<Set<String>>(emptySet())
+    val selectedFiles: StateFlow<Set<String>> = _selectedFiles.asStateFlow()
+
+    private val _batchMode = MutableStateFlow(false)
+    val batchMode: StateFlow<Boolean> = _batchMode.asStateFlow()
+
+    // Tag filter
+    private val _tagFilter = MutableStateFlow<String?>(null)
+    val tagFilter: StateFlow<String?> = _tagFilter.asStateFlow()
+
+    // Settings state
+    private val _settingsState = MutableStateFlow<UiState<String>>(UiState.Idle)
+    val settingsState: StateFlow<UiState<String>> = _settingsState.asStateFlow()
+
+    private val _backupContent = MutableStateFlow<String?>(null)
+    val backupContent: StateFlow<String?> = _backupContent.asStateFlow()
+
+    // Filtered servers with tag filter
+    val filteredServers: StateFlow<List<Server>> = combine(_servers, _tagFilter) { servers, filter ->
+        if (filter.isNullOrBlank()) servers
+        else servers.filter { it.tags.contains(filter) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private var api: WebSSHApi? = null
 
     init {
@@ -87,6 +111,8 @@ class WebSSHViewModel(
             api = networkClient.createApi(url)
         }
     }
+
+    // ==================== Auth ====================
 
     fun login(username: String, password: String) {
         viewModelScope.launch {
@@ -123,6 +149,8 @@ class WebSSHViewModel(
             _servers.value = emptyList()
             _currentServer.value = null
             _files.value = emptyList()
+            _selectedFiles.value = emptySet()
+            _batchMode.value = false
         }
     }
 
@@ -144,13 +172,13 @@ class WebSSHViewModel(
 
     // ==================== Server CRUD ====================
 
-    fun addServer(name: String, host: String, port: Int, username: String, authType: String, password: String) {
+    fun addServer(name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String> = emptyList()) {
         viewModelScope.launch {
             try {
                 val token = tokenManager.token.first() ?: return@launch
                 val response = api?.addServer(
                     "Bearer $token",
-                    ServerRequest(name, host, port, username, authType, password, emptyList(), true)
+                    ServerRequest(name, host, port, username, authType, password, tags, true)
                 )
                 if (response?.isSuccessful == true && response.body()?.success == true) {
                     _toastMessage.value = "服务器添加成功"
@@ -164,14 +192,14 @@ class WebSSHViewModel(
         }
     }
 
-    fun updateServer(id: Long, name: String, host: String, port: Int, username: String, authType: String, password: String) {
+    fun updateServer(id: Long, name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String> = emptyList(), enabled: Boolean = true) {
         viewModelScope.launch {
             try {
                 val token = tokenManager.token.first() ?: return@launch
                 val response = api?.updateServer(
                     "Bearer $token",
                     id,
-                    ServerRequest(name, host, port, username, authType, password, emptyList(), true)
+                    ServerRequest(name, host, port, username, authType, password, tags, enabled)
                 )
                 if (response?.isSuccessful == true && response.body()?.success == true) {
                     _toastMessage.value = "服务器更新成功"
@@ -202,16 +230,52 @@ class WebSSHViewModel(
         }
     }
 
+    fun toggleServerEnabled(server: Server) {
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.updateServer(
+                    "Bearer $token",
+                    server.id,
+                    ServerRequest(
+                        server.name, server.host, server.port, server.username,
+                        server.authType, "", server.tags, !server.enabled
+                    )
+                )
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _toastMessage.value = if (!server.enabled) "已启用" else "已禁用"
+                    loadServers()
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    // ==================== Tag Filter ====================
+
+    fun setTagFilter(tag: String?) {
+        _tagFilter.value = tag
+    }
+
+    fun getAllTags(): List<String> {
+        return _servers.value.flatMap { it.tags }.distinct().sorted()
+    }
+
     // ==================== Server Selection & Navigation ====================
 
     fun selectServer(server: Server) {
         _currentServer.value = server
         _currentPath.value = "/"
+        _selectedFiles.value = emptySet()
+        _batchMode.value = false
         loadFiles()
     }
 
     fun navigateTo(path: String) {
         _currentPath.value = path
+        _selectedFiles.value = emptySet()
+        _batchMode.value = false
         loadFiles()
     }
 
@@ -220,6 +284,8 @@ class WebSSHViewModel(
         if (current != "/") {
             val parent = current.substringBeforeLast('/', current)
             _currentPath.value = if (parent.isEmpty()) "/" else parent
+            _selectedFiles.value = emptySet()
+            _batchMode.value = false
             loadFiles()
         }
     }
@@ -326,6 +392,34 @@ class WebSSHViewModel(
         }
     }
 
+    // ==================== Batch Selection ====================
+
+    fun toggleBatchMode() {
+        _batchMode.value = !_batchMode.value
+        if (!_batchMode.value) {
+            _selectedFiles.value = emptySet()
+        }
+    }
+
+    fun toggleFileSelection(filename: String) {
+        val current = _selectedFiles.value
+        _selectedFiles.value = if (filename in current) current - filename else current + filename
+    }
+
+    fun selectAllFiles() {
+        val fileNames = _files.value.filter { it.type != "directory" }.map { it.name }.toSet()
+        if (_selectedFiles.value.size == fileNames.size) {
+            _selectedFiles.value = emptySet()
+        } else {
+            _selectedFiles.value = fileNames
+        }
+    }
+
+    fun clearSelection() {
+        _selectedFiles.value = emptySet()
+        _batchMode.value = false
+    }
+
     // ==================== File Upload ====================
 
     fun uploadFile(filename: String, base64Content: String) {
@@ -366,6 +460,38 @@ class WebSSHViewModel(
                     }
                 } else {
                     _toastMessage.value = "下载失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    fun batchDownloadZip() {
+        val server = _currentServer.value ?: return
+        val selected = _selectedFiles.value
+        if (selected.isEmpty()) {
+            _toastMessage.value = "请先选择文件"
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val paths = selected.map { name ->
+                    if (_currentPath.value == "/") "/$name" else "${_currentPath.value}/$name"
+                }
+                val response = api?.downloadBatch("Bearer $token", DownloadBatchRequest(server.id, paths))
+                if (response?.isSuccessful == true) {
+                    val body = response.body()
+                    if (body != null) {
+                        val bytes = body.bytes()
+                        val zipName = "batch_${System.currentTimeMillis()}.zip"
+                        saveFileToDownloads(zipName, bytes)
+                        _selectedFiles.value = emptySet()
+                        _batchMode.value = false
+                    }
+                } else {
+                    _toastMessage.value = "批量下载失败"
                 }
             } catch (e: Exception) {
                 _toastMessage.value = e.message ?: "网络错误"
@@ -423,6 +549,72 @@ class WebSSHViewModel(
     }
 
     fun clearFileContent() { _fileContent.value = null }
+
+    // ==================== Settings ====================
+
+    fun changePassword(oldPassword: String, newPassword: String) {
+        viewModelScope.launch {
+            _settingsState.value = UiState.Loading
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.changePassword(
+                    "Bearer $token",
+                    ChangePasswordRequest(oldPassword, newPassword)
+                )
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _settingsState.value = UiState.Success("密码修改成功")
+                } else {
+                    _settingsState.value = UiState.Error(response?.body()?.message ?: "修改失败")
+                }
+            } catch (e: Exception) {
+                _settingsState.value = UiState.Error(e.message ?: "网络错误")
+            }
+        }
+    }
+
+    fun clearSettingsState() { _settingsState.value = UiState.Idle }
+
+    fun backupServers() {
+        viewModelScope.launch {
+            _settingsState.value = UiState.Loading
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.backupServers("Bearer $token")
+                if (response?.isSuccessful == true) {
+                    val content = response.body()?.string()
+                    _backupContent.value = content
+                    _settingsState.value = UiState.Success("备份成功")
+                } else {
+                    _settingsState.value = UiState.Error("备份失败")
+                }
+            } catch (e: Exception) {
+                _settingsState.value = UiState.Error(e.message ?: "网络错误")
+            }
+        }
+    }
+
+    fun restoreServers(content: String) {
+        viewModelScope.launch {
+            _settingsState.value = UiState.Loading
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.restoreServers(
+                    "Bearer $token",
+                    RestoreRequest(content)
+                )
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _settingsState.value = UiState.Success("恢复成功")
+                    loadServers()
+                } else {
+                    _settingsState.value = UiState.Error(response?.body()?.message ?: "恢复失败")
+                }
+            } catch (e: Exception) {
+                _settingsState.value = UiState.Error(e.message ?: "网络错误")
+            }
+        }
+    }
+
+    fun clearBackupContent() { _backupContent.value = null }
 
     fun refresh() {
         loadFiles()
