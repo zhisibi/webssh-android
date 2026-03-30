@@ -11,27 +11,26 @@ html, body {
   overflow: hidden; background: #1e1e1e;
   position: fixed; top: 0; left: 0;
 }
-#terminal {
-  width: 100%; height: 52vh;
-  background: #1e1e1e;
-}
-.xterm { padding: 4px; }
 
-/* Toolbar with safe margin from bottom */
+/* Toolbar at top */
 #toolbar {
-  position: fixed;
-  bottom: 8px;
-  left: 8px; right: 8px;
+  position: fixed; top: 0; left: 0; right: 0;
   background: #2d2d2d; height: 40px;
   display: flex; align-items: center;
   padding: 3px 6px; gap: 4px;
   overflow-x: auto; overflow-y: hidden;
-  border: 1px solid #555;
-  border-radius: 8px;
+  border-bottom: 1px solid #555;
   z-index: 10;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 #toolbar::-webkit-scrollbar { height: 0; }
+
+#terminal {
+  width: 100%; height: 45vh;
+  background: #1e1e1e;
+  margin-top: 40px;
+}
+.xterm { padding: 4px; }
+
 .key-btn {
   background: #3a3a3a; color: #ddd; border: 1px solid #555;
   border-radius: 4px; padding: 5px 9px;
@@ -56,9 +55,7 @@ html, body {
 </head>
 <body>
 
-<div id="terminal"></div>
-<div id="status">正在加载终端...</div>
-
+<!-- Toolbar on top -->
 <div id="toolbar">
   <button class="key-btn ctrl" data-key="ctrl">⌃Ctrl</button>
   <button class="key-btn" data-key="tab">⇥Tab</button>
@@ -80,6 +77,9 @@ html, body {
   <button class="key-btn" data-key="F10">F10</button>
   <button class="key-btn" data-key="F12">F12</button>
 </div>
+
+<div id="terminal"></div>
+<div id="status">正在加载终端...</div>
 
 <script src="js/xterm.js"></script>
 <script src="js/xterm-addon-fit.js"></script>
@@ -106,7 +106,7 @@ html, body {
 
     function setupSize() {
       var screenH = window.screen.height;
-      termEl.style.height = Math.floor(screenH * 0.52) + 'px';
+      termEl.style.height = Math.floor(screenH * 0.45) + 'px';
       setTimeout(function() {
         try { fitAddon.fit(); } catch(e) {}
         try { term.scrollToBottom(); } catch(e) {}
