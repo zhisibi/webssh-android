@@ -23,18 +23,20 @@ import com.webssh.api.Server
 fun ServerListScreen(
     servers: List<Server>,
     onServerClick: (Server) -> Unit,
+    onAddServer: () -> Unit,
+    onEditServer: (Server) -> Unit,
     onLogout: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
-                        "WebSSH", 
+                        "WebSSH",
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
-                    ) 
+                    )
                 },
                 actions = {
                     IconButton(onClick = onSettingsClick) {
@@ -50,6 +52,14 @@ fun ServerListScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddServer,
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "添加服务器")
+            }
         }
     ) { paddingValues ->
         if (servers.isEmpty()) {
@@ -72,6 +82,12 @@ fun ServerListScreen(
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "点击右下角 + 添加服务器",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
                 }
             }
         } else {
@@ -85,7 +101,8 @@ fun ServerListScreen(
                 items(servers) { server ->
                     ServerCard(
                         server = server,
-                        onClick = { onServerClick(server) }
+                        onClick = { onServerClick(server) },
+                        onEdit = { onEditServer(server) }
                     )
                 }
             }
@@ -96,7 +113,8 @@ fun ServerListScreen(
 @Composable
 fun ServerCard(
     server: Server,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEdit: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -128,9 +146,9 @@ fun ServerCard(
                     modifier = Modifier.size(28.dp)
                 )
             }
-            
+
             Spacer(modifier = Modifier.width(16.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = server.name,
@@ -144,12 +162,24 @@ fun ServerCard(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
-            
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-            )
+
+            // SSH button
+            IconButton(onClick = onClick) {
+                Icon(
+                    Icons.Default.Computer,
+                    contentDescription = "文件管理",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Edit button
+            IconButton(onClick = onEdit) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "编辑",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
         }
     }
 }

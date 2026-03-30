@@ -1,12 +1,17 @@
 package com.webssh.viewmodel
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.webssh.api.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
 
 sealed class UiState<out T> {
     object Idle : UiState<Nothing>()
@@ -24,6 +29,9 @@ class WebSSHViewModel(
 
     private val _baseUrl = MutableStateFlow("http://192.168.100.20:3000")
     val baseUrl: StateFlow<String> = _baseUrl.asStateFlow()
+
+    private val _token = MutableStateFlow<String?>(null)
+    val token: StateFlow<String?> = _token.asStateFlow()
 
     private val _loginState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val loginState: StateFlow<UiState<Unit>> = _loginState.asStateFlow()
@@ -49,6 +57,12 @@ class WebSSHViewModel(
     private val _sortAsc = MutableStateFlow(true)
     val sortAsc: StateFlow<Boolean> = _sortAsc.asStateFlow()
 
+    private val _toastMessage = MutableStateFlow<String?>(null)
+    val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
+
+    private val _fileContent = MutableStateFlow<String?>(null)
+    val fileContent: StateFlow<String?> = _fileContent.asStateFlow()
+
     private var api: WebSSHApi? = null
 
     init {
@@ -58,7 +72,14 @@ class WebSSHViewModel(
                 api = networkClient.createApi(url)
             }
         }
+        viewModelScope.launch {
+            tokenManager.token.collect { t ->
+                _token.value = t
+            }
+        }
     }
+
+    fun clearToast() { _toastMessage.value = null }
 
     fun setBaseUrl(url: String) {
         viewModelScope.launch {
@@ -120,6 +141,68 @@ class WebSSHViewModel(
             _isLoading.value = false
         }
     }
+
+    // ==================== Server CRUD ====================
+
+    fun addServer(name: String, host: String, port: Int, username: String, authType: String, password: String) {
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.addServer(
+                    "Bearer $token",
+                    ServerRequest(name, host, port, username, authType, password, emptyList(), true)
+                )
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _toastMessage.value = "服务器添加成功"
+                    loadServers()
+                } else {
+                    _toastMessage.value = response?.body()?.message ?: "添加失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    fun updateServer(id: Long, name: String, host: String, port: Int, username: String, authType: String, password: String) {
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.updateServer(
+                    "Bearer $token",
+                    id,
+                    ServerRequest(name, host, port, username, authType, password, emptyList(), true)
+                )
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _toastMessage.value = "服务器更新成功"
+                    loadServers()
+                } else {
+                    _toastMessage.value = response?.body()?.message ?: "更新失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    fun deleteServer(id: Long) {
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.deleteServer("Bearer $token", id)
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _toastMessage.value = "服务器已删除"
+                    loadServers()
+                } else {
+                    _toastMessage.value = response?.body()?.message ?: "删除失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    // ==================== Server Selection & Navigation ====================
 
     fun selectServer(server: Server) {
         _currentServer.value = server
@@ -242,6 +325,104 @@ class WebSSHViewModel(
             }
         }
     }
+
+    // ==================== File Upload ====================
+
+    fun uploadFile(filename: String, base64Content: String) {
+        val server = _currentServer.value ?: return
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.uploadFile(
+                    "Bearer $token",
+                    UploadRequest(server.id, _currentPath.value, filename, base64Content)
+                )
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _toastMessage.value = "上传成功"
+                    loadFiles()
+                } else {
+                    _toastMessage.value = response?.body()?.message ?: "上传失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    // ==================== File Download ====================
+
+    fun downloadFile(name: String) {
+        val server = _currentServer.value ?: return
+        val fullPath = if (_currentPath.value == "/") "/$name" else "${_currentPath.value}/$name"
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.downloadFile("Bearer $token", server.id, fullPath)
+                if (response?.isSuccessful == true) {
+                    val body = response.body()
+                    if (body != null) {
+                        val bytes = body.bytes()
+                        saveFileToDownloads(name, bytes)
+                    }
+                } else {
+                    _toastMessage.value = "下载失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    private fun saveFileToDownloads(filename: String, bytes: ByteArray) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                if (uri != null) {
+                    context.contentResolver.openOutputStream(uri)?.use { os ->
+                        os.write(bytes)
+                    }
+                    values.clear()
+                    values.put(MediaStore.Downloads.IS_PENDING, 0)
+                    context.contentResolver.update(uri, values, null, null)
+                    _toastMessage.value = "已保存到下载目录: $filename"
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val file = File(downloadsDir, filename)
+                file.writeBytes(bytes)
+                _toastMessage.value = "已保存到: ${file.absolutePath}"
+            }
+        } catch (e: Exception) {
+            _toastMessage.value = "保存文件失败: ${e.message}"
+        }
+    }
+
+    // ==================== File Preview ====================
+
+    fun previewFile(name: String) {
+        val server = _currentServer.value ?: return
+        val fullPath = if (_currentPath.value == "/") "/$name" else "${_currentPath.value}/$name"
+        viewModelScope.launch {
+            try {
+                val token = tokenManager.token.first() ?: return@launch
+                val response = api?.readFile("Bearer $token", server.id, fullPath)
+                if (response?.isSuccessful == true && response.body()?.success == true) {
+                    _fileContent.value = response.body()?.content
+                } else {
+                    _toastMessage.value = "预览失败"
+                }
+            } catch (e: Exception) {
+                _toastMessage.value = e.message ?: "网络错误"
+            }
+        }
+    }
+
+    fun clearFileContent() { _fileContent.value = null }
 
     fun refresh() {
         loadFiles()

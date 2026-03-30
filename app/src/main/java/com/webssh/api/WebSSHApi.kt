@@ -58,11 +58,31 @@ interface WebSSHApi {
         @Body request: RenameRequest
     ): Response<BaseResponse>
 
+    @POST("api/sftp/upload")
+    suspend fun uploadFile(
+        @Header("Authorization") token: String,
+        @Body request: UploadRequest
+    ): Response<BaseResponse>
+
+    @GET("api/sftp/download")
+    suspend fun downloadFile(
+        @Header("Authorization") token: String,
+        @Query("serverId") serverId: Long,
+        @Query("path") path: String
+    ): Response<okhttp3.ResponseBody>
+
+    @GET("api/sftp/read")
+    suspend fun readFile(
+        @Header("Authorization") token: String,
+        @Query("serverId") serverId: Long,
+        @Query("path") path: String
+    ): Response<ReadFileResponse>
+
     @POST("api/sftp/download-batch")
     suspend fun downloadBatch(
         @Header("Authorization") token: String,
         @Body request: DownloadBatchRequest
-    ): Response<BaseResponse>
+    ): Response<okhttp3.ResponseBody>
 }
 
 // Request/Response Models
@@ -104,8 +124,10 @@ data class FileItem(
 )
 
 data class FileListResponse(val success: Boolean, val files: List<FileItem>?)
+data class ReadFileResponse(val success: Boolean, val content: String?)
 
 data class MkdirRequest(val serverId: Long, val path: String, val dirname: String)
 data class DeleteRequest(val serverId: Long, val targetPath: String, val type: String)
 data class RenameRequest(val serverId: Long, val oldPath: String, val newPath: String)
 data class DownloadBatchRequest(val serverId: Long, val paths: List<String>)
+data class UploadRequest(val serverId: Long, val path: String, val filename: String, val content: String)
