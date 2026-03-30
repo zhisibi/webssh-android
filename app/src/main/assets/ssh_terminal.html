@@ -10,24 +10,29 @@ html, body {
   margin: 0; padding: 0; width: 100%; height: 100%;
   overflow: hidden; background: #1e1e1e;
   position: fixed; top: 0; left: 0;
-  display: flex; flex-direction: column;
 }
+#terminal {
+  width: 100%; height: 65vh; background: #1e1e1e;
+}
+.xterm { padding: 4px; }
 
-/* Toolbar */
+/* Toolbar at bottom */
 #toolbar {
-  background: #2d2d2d; height: 36px; min-height: 36px;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #2d2d2d; height: 40px;
   display: flex; align-items: center;
-  padding: 2px 4px; gap: 2px;
+  padding: 3px 4px; gap: 3px;
   overflow-x: auto; overflow-y: hidden;
-  flex-shrink: 0; border-bottom: 1px solid #444;
+  border-top: 1px solid #555;
+  z-index: 10;
 }
 #toolbar::-webkit-scrollbar { height: 0; }
 .key-btn {
   background: #3a3a3a; color: #ddd; border: 1px solid #555;
-  border-radius: 4px; padding: 4px 8px;
-  font-size: 11px; font-family: monospace;
+  border-radius: 4px; padding: 5px 9px;
+  font-size: 12px; font-family: monospace;
   white-space: nowrap; cursor: pointer;
-  min-width: 32px; text-align: center;
+  min-width: 34px; text-align: center;
   -webkit-tap-highlight-color: transparent;
   user-select: none; -webkit-user-select: none;
   flex-shrink: 0; outline: none;
@@ -35,14 +40,8 @@ html, body {
 .key-btn:active { background: #555; color: #fff; }
 .key-btn.fn { background: #4a3a2a; border-color: #7a5a3a; }
 .key-btn.ctrl { background: #2a3a4a; border-color: #3a5a7a; }
-.key-btn.arrow { min-width: 28px; padding: 4px 6px; }
+.key-btn.arrow { min-width: 30px; padding: 5px 7px; }
 
-/* Terminal */
-#terminal-container {
-  flex: 1; overflow: hidden; position: relative;
-}
-#terminal { width: 100%; height: 100%; }
-.xterm { padding: 4px; }
 #status {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
@@ -52,6 +51,10 @@ html, body {
 </head>
 <body>
 
+<div id="terminal"></div>
+<div id="status">正在加载终端...</div>
+
+<!-- Toolbar fixed at bottom -->
 <div id="toolbar">
   <button class="key-btn ctrl" data-key="ctrl">⌃Ctrl</button>
   <button class="key-btn" data-key="tab">⇥Tab</button>
@@ -74,11 +77,6 @@ html, body {
   <button class="key-btn" data-key="F12">F12</button>
 </div>
 
-<div id="terminal-container">
-  <div id="terminal"></div>
-  <div id="status">正在加载终端...</div>
-</div>
-
 <script src="js/xterm.js"></script>
 <script src="js/xterm-addon-fit.js"></script>
 <script>
@@ -87,7 +85,7 @@ html, body {
   var wsUrl = '%WS_URL%';
   var ctrlMode = false;
   var ws = null;
-  var fitTimer = null;
+  var termEl = document.getElementById('terminal');
 
   try {
     var term = new Terminal({
@@ -104,63 +102,40 @@ html, body {
 
     var fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
-    term.open(document.getElementById('terminal'));
+    term.open(termEl);
     statusEl.style.display = 'none';
 
-    // ===== Core: Fit + Scroll =====
-    function fitAndScroll() {
-      clearTimeout(fitTimer);
-      fitTimer = setTimeout(function() {
+    // ===== Size Management =====
+    function updateSize() {
+      var toolbarH = 40;
+      var viewH = window.visualViewport
+        ? window.visualViewport.height
+        : window.innerHeight;
+      var termH = Math.max(100, viewH - toolbarH);
+      termEl.style.height = termH + 'px';
+      setTimeout(function() {
         try { fitAddon.fit(); } catch(e) {}
-        // Always keep cursor visible at bottom
         try { term.scrollToBottom(); } catch(e) {}
-      }, 80);
+      }, 60);
     }
 
-    // Initial fit
-    fitAndScroll();
+    // Initial
+    updateSize();
 
-    // KEY: Use ResizeObserver on the container div
-    // This fires when keyboard shows/hides (resize changes container height)
-    var container = document.getElementById('terminal-container');
-    if (typeof ResizeObserver !== 'undefined') {
-      var ro = new ResizeObserver(function() {
-        fitAndScroll();
-      });
-      ro.observe(container);
-    }
-
-    // Also listen to visualViewport (more reliable on some devices)
+    // React to keyboard show/hide
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', fitAndScroll);
-      window.visualViewport.addEventListener('scroll', fitAndScroll);
+      window.visualViewport.addEventListener('resize', updateSize);
+    }
+    window.addEventListener('resize', updateSize);
+
+    // Also use ResizeObserver for reliability
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(updateSize).observe(document.body);
     }
 
-    // Fallback
-    window.addEventListener('resize', fitAndScroll);
-
-    // After each data write, ensure we're scrolled to bottom
-    term.onData(function(data) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        if (ctrlMode && data.length === 1) {
-          var code = data.charCodeAt(0);
-          if (code >= 97 && code <= 122) {
-            sendData(String.fromCharCode(code - 96));
-            ctrlMode = false;
-            updateCtrlBtn();
-            return;
-          }
-        }
-        sendData(data);
-      }
-    });
-
-    // Scroll to bottom after any write
-    var origWrite = term.write.bind(term);
-    term.write = function(data) {
-      origWrite(data);
-      try { term.scrollToBottom(); } catch(e) {}
-    };
+    // Auto-scroll after every write
+    var _write = term.write.bind(term);
+    term.write = function(d) { _write(d); try { term.scrollToBottom(); } catch(e) {} };
 
     // ===== WebSocket =====
     function sendData(data) {
@@ -169,73 +144,76 @@ html, body {
       }
     }
 
+    term.onData(function(data) {
+      if (ctrlMode && data.length === 1) {
+        var c = data.charCodeAt(0);
+        if (c >= 97 && c <= 122) {
+          sendData(String.fromCharCode(c - 96));
+          ctrlMode = false; updateCtrlBtn();
+          return;
+        }
+      }
+      sendData(data);
+    });
+
     function connect() {
       statusEl.textContent = '连接中...';
       statusEl.style.display = 'block';
-      try {
-        ws = new WebSocket(wsUrl);
-      } catch(e) {
-        term.write('\r\n\x1b[31m[WebSocket 创建失败: ' + e.message + ']\x1b[0m\r\n');
+      try { ws = new WebSocket(wsUrl); } catch(e) {
+        term.write('\r\n\x1b[31m[连接失败: ' + e.message + ']\x1b[0m\r\n');
         statusEl.style.display = 'none';
-        try { AndroidBridge.onError('WebSocket 创建失败: ' + e.message); } catch(x) {}
+        try { AndroidBridge.onError(e.message); } catch(x) {}
         return;
       }
-
       ws.onopen = function() {
         statusEl.style.display = 'none';
         try { AndroidBridge.onConnected(); } catch(e) {}
-        // Send initial size
+        sendData(''); // trigger
         try { ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })); } catch(e) {}
-        // Re-fit after connection (in case keyboard was already open)
-        setTimeout(fitAndScroll, 300);
+        setTimeout(updateSize, 300);
       };
-
-      ws.onmessage = function(event) {
+      ws.onmessage = function(ev) {
         try {
-          var msg = JSON.parse(event.data);
-          if (msg.type === 'data') { term.write(msg.data); }
-          else if (msg.type === 'close') {
-            term.write('\r\n\x1b[31m[连接已关闭]\x1b[0m\r\n');
-            try { AndroidBridge.onDisconnected(msg.data || 'closed'); } catch(e) {}
+          var m = JSON.parse(ev.data);
+          if (m.type === 'data') term.write(m.data);
+          else if (m.type === 'error') {
+            term.write('\r\n\x1b[31m[错误: ' + m.data + ']\x1b[0m\r\n');
+            try { AndroidBridge.onError(m.data); } catch(e) {}
           }
-          else if (msg.type === 'error') {
-            term.write('\r\n\x1b[31m[错误: ' + msg.data + ']\x1b[0m\r\n');
-            try { AndroidBridge.onError(msg.data); } catch(e) {}
+          else if (m.type === 'close') {
+            term.write('\r\n\x1b[31m[连接关闭]\x1b[0m\r\n');
+            try { AndroidBridge.onDisconnected(m.data || ''); } catch(e) {}
           }
-        } catch(e) { term.write(event.data); }
+        } catch(e) { term.write(ev.data); }
       };
-
-      ws.onclose = function(event) {
+      ws.onclose = function() {
         term.write('\r\n\x1b[31m[连接断开]\x1b[0m\r\n');
-        statusEl.style.display = 'none';
-        try { AndroidBridge.onDisconnected(event.code + ''); } catch(e) {}
+        try { AndroidBridge.onDisconnected('closed'); } catch(e) {}
       };
-
       ws.onerror = function() {
-        term.write('\r\n\x1b[31m[WebSocket 错误]\x1b[0m\r\n');
-        statusEl.style.display = 'none';
-        try { AndroidBridge.onError('WebSocket 连接错误'); } catch(e) {}
+        term.write('\r\n\x1b[31m[连接错误]\x1b[0m\r\n');
+        try { AndroidBridge.onError('ws error'); } catch(e) {}
       };
     }
 
     // ===== Toolbar =====
     var keyMap = {
-      'tab': '\t', 'escape': '\x1b',
-      '/': '/', '-': '-', '~': '~', '|': '|',
-      'up': '\x1b[A', 'down': '\x1b[B',
-      'right': '\x1b[C', 'left': '\x1b[D',
-      'home': '\x1bOH', 'end': '\x1bOF',
-      'pgup': '\x1b[5~', 'pgdown': '\x1b[6~',
-      'F1': '\x1bOP', 'F2': '\x1bOQ', 'F3': '\x1bOR',
-      'F10': '\x1b[21~', 'F12': '\x1b[24~'
+      'tab':'\t', 'escape':'\x1b',
+      '/':'/', '-':'-', '~':'~', '|':'|',
+      'up':'\x1b[A', 'down':'\x1b[B',
+      'right':'\x1b[C', 'left':'\x1b[D',
+      'home':'\x1bOH', 'end':'\x1bOF',
+      'pgup':'\x1b[5~', 'pgdown':'\x1b[6~',
+      'F1':'\x1bOP', 'F2':'\x1bOQ', 'F3':'\x1bOR',
+      'F10':'\x1b[21~', 'F12':'\x1b[24~'
     };
 
     function updateCtrlBtn() {
-      var btn = document.querySelector('[data-key="ctrl"]');
-      if (btn) {
-        btn.style.background = ctrlMode ? '#6a4a2a' : '#2a3a4a';
-        btn.style.borderColor = ctrlMode ? '#aa7a3a' : '#3a5a7a';
-        btn.style.color = ctrlMode ? '#ffcc00' : '#ddd';
+      var b = document.querySelector('[data-key="ctrl"]');
+      if (b) {
+        b.style.background = ctrlMode ? '#6a4a2a' : '#2a3a4a';
+        b.style.borderColor = ctrlMode ? '#aa7a3a' : '#3a5a7a';
+        b.style.color = ctrlMode ? '#ffcc00' : '#ddd';
       }
     }
 
@@ -245,15 +223,12 @@ html, body {
       var key = btn.getAttribute('data-key');
       if (key === 'ctrl') { ctrlMode = !ctrlMode; updateCtrlBtn(); return; }
       ctrlMode = false; updateCtrlBtn();
-      var seq = keyMap[key];
-      if (seq) sendData(seq);
+      if (keyMap[key]) sendData(keyMap[key]);
     });
 
     connect();
-
   } catch(e) {
     statusEl.textContent = '初始化失败: ' + e.message;
-    try { AndroidBridge.onError('初始化失败: ' + e.message); } catch(x) {}
   }
 })();
 </script>
