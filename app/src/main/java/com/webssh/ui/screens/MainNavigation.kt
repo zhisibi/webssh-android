@@ -23,6 +23,8 @@ fun MainNavigation() {
 
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Login) }
     var editingServer by remember { mutableStateOf<com.webssh.api.Server?>(null) }
+    // Track where SSH terminal was opened from, for back navigation
+    var sshBackTarget by remember { mutableStateOf<Screen>(Screen.ServerList) }
 
     val loginState by viewModel.loginState.collectAsState()
     val baseUrl by viewModel.baseUrl.collectAsState()
@@ -78,6 +80,11 @@ fun MainNavigation() {
                     viewModel.selectServer(server)
                     currentScreen = Screen.FileManager
                 },
+                onSshClick = { server ->
+                    viewModel.selectServer(server)
+                    sshBackTarget = Screen.ServerList
+                    currentScreen = Screen.SshTerminal
+                },
                 onAddServer = {
                     editingServer = null
                     currentScreen = Screen.AddEditServer
@@ -131,7 +138,10 @@ fun MainNavigation() {
                     onDownloadFile = { name -> viewModel.downloadFile(name) },
                     onPreviewFile = { name -> viewModel.previewFile(name) },
                     onUploadFile = { name, content -> viewModel.uploadFile(name, content) },
-                    onOpenSshTerminal = { currentScreen = Screen.SshTerminal },
+                    onOpenSshTerminal = {
+                        sshBackTarget = Screen.FileManager
+                        currentScreen = Screen.SshTerminal
+                    },
                     onBack = {
                         currentScreen = Screen.ServerList
                     }
@@ -146,7 +156,7 @@ fun MainNavigation() {
                     serverId = server.id,
                     baseUrl = baseUrl,
                     token = token ?: "",
-                    onBack = { currentScreen = Screen.FileManager }
+                    onBack = { currentScreen = sshBackTarget }
                 )
             }
         }

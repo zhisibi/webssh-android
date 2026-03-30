@@ -23,6 +23,7 @@ import com.webssh.api.Server
 fun ServerListScreen(
     servers: List<Server>,
     onServerClick: (Server) -> Unit,
+    onSshClick: (Server) -> Unit,
     onAddServer: () -> Unit,
     onEditServer: (Server) -> Unit,
     onLogout: () -> Unit,
@@ -102,6 +103,7 @@ fun ServerListScreen(
                     ServerCard(
                         server = server,
                         onClick = { onServerClick(server) },
+                        onSshClick = { onSshClick(server) },
                         onEdit = { onEditServer(server) }
                     )
                 }
@@ -114,13 +116,13 @@ fun ServerListScreen(
 fun ServerCard(
     server: Server,
     onClick: () -> Unit,
+    onSshClick: () -> Unit,
     onEdit: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+            .clip(RoundedCornerShape(12.dp)),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -136,12 +138,13 @@ fun ServerCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.Dns,
-                    contentDescription = null,
+                    contentDescription = "文件管理",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
                 )
@@ -149,7 +152,11 @@ fun ServerCard(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onClick)
+            ) {
                 Text(
                     text = server.name,
                     fontSize = 16.sp,
@@ -163,14 +170,16 @@ fun ServerCard(
                 )
             }
 
-            // SSH button
-            IconButton(onClick = onClick) {
+            // SSH terminal button
+            FilledTonalIconButton(onClick = onSshClick) {
                 Icon(
                     Icons.Default.Computer,
-                    contentDescription = "文件管理",
+                    contentDescription = "SSH终端",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
+
+            Spacer(modifier = Modifier.width(4.dp))
 
             // Edit button
             IconButton(onClick = onEdit) {
