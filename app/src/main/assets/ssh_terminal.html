@@ -12,23 +12,24 @@ html, body {
   position: fixed; top: 0; left: 0;
 }
 #terminal {
-  width: 100%; height: 65vh;
+  width: 100%; height: 52vh;
   background: #1e1e1e;
 }
 .xterm { padding: 4px; }
 
-/* Toolbar: fixed at 65% from top (= 35% from bottom) */
+/* Toolbar with safe margin from bottom */
 #toolbar {
   position: fixed;
-  top: 65vh;
-  left: 0; right: 0;
+  bottom: 8px;
+  left: 8px; right: 8px;
   background: #2d2d2d; height: 40px;
   display: flex; align-items: center;
-  padding: 3px 4px; gap: 3px;
+  padding: 3px 6px; gap: 4px;
   overflow-x: auto; overflow-y: hidden;
-  border-top: 1px solid #555;
-  border-bottom: 1px solid #555;
+  border: 1px solid #555;
+  border-radius: 8px;
   z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 #toolbar::-webkit-scrollbar { height: 0; }
 .key-btn {
@@ -103,11 +104,9 @@ html, body {
     term.open(termEl);
     statusEl.style.display = 'none';
 
-    // Terminal height = 65% of full screen (always)
     function setupSize() {
       var screenH = window.screen.height;
-      var termH = Math.floor(screenH * 0.65);
-      termEl.style.height = termH + 'px';
+      termEl.style.height = Math.floor(screenH * 0.52) + 'px';
       setTimeout(function() {
         try { fitAddon.fit(); } catch(e) {}
         try { term.scrollToBottom(); } catch(e) {}
@@ -117,11 +116,9 @@ html, body {
     setupSize();
     window.addEventListener('resize', setupSize);
 
-    // Auto-scroll on output
     var _w = term.write.bind(term);
     term.write = function(d) { _w(d); try { term.scrollToBottom(); } catch(e) {} };
 
-    // ===== WebSocket =====
     function send(d) {
       if (ws && ws.readyState === WebSocket.OPEN)
         try { ws.send(JSON.stringify({type:'data',data:d})); } catch(e) {}
@@ -159,7 +156,6 @@ html, body {
       ws.onerror=function(){term.write('\r\n\x1b[31m[错误]\x1b[0m\r\n');try{AndroidBridge.onError('ws error');}catch(e){}};
     }
 
-    // ===== Toolbar =====
     var KM={tab:'\t',escape:'\x1b','/':'/','-':'-','~':'~','|':'|',
       up:'\x1b[A',down:'\x1b[B',right:'\x1b[C',left:'\x1b[D',
       home:'\x1bOH',end:'\x1bOF',pgup:'\x1b[5~',pgdown:'\x1b[6~',
