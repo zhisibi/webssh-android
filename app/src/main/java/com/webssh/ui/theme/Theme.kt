@@ -12,53 +12,80 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val Purple80 = Color(0xFFD0BCFF)
-private val PurpleGrey80 = Color(0xFFCCC2DC)
-private val Pink80 = Color(0xFFEFB8C8)
+// Light theme colors
+private val LightPrimary = Color(0xFF4F46E5)
+private val LightOnPrimary = Color.White
+private val LightPrimaryContainer = Color(0xFFE0E7FF)
+private val LightSecondary = Color(0xFF6366F1)
+private val LightTertiary = Color(0xFF818CF8)
+private val LightBackground = Color(0xFFF5F7FB)
+private val LightSurface = Color.White
+private val LightOnBackground = Color(0xFF1F2937)
+private val LightOnSurface = Color(0xFF1F2937)
+private val LightError = Color(0xFFDC2626)
 
-private val Purple40 = Color(0xFF6650a4)
-private val PurpleGrey40 = Color(0xFF625b71)
-private val Pink40 = Color(0xFF7D5260)
+// Dark theme colors
+private val DarkPrimary = Color(0xFF818CF8)
+private val DarkOnPrimary = Color(0xFF1E1B4B)
+private val DarkPrimaryContainer = Color(0xFF3730A3)
+private val DarkSecondary = Color(0xFFA5B4FC)
+private val DarkTertiary = Color(0xFFC7D2FE)
+private val DarkBackground = Color(0xFF0F172A)
+private val DarkSurface = Color(0xFF1E293B)
+private val DarkOnBackground = Color(0xFFF1F5F9)
+private val DarkOnSurface = Color(0xFFF1F5F9)
+private val DarkError = Color(0xFFF87171)
+private val DarkSurfaceVariant = Color(0xFF334155)
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-    background = Color(0xFF121212),
-    surface = Color(0xFF1E1E1E),
-    onPrimary = Color.Black,
-    onSecondary = Color.Black,
-    onTertiary = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color.White
+    primary = DarkPrimary,
+    onPrimary = DarkOnPrimary,
+    primaryContainer = DarkPrimaryContainer,
+    secondary = DarkSecondary,
+    tertiary = DarkTertiary,
+    background = DarkBackground,
+    surface = DarkSurface,
+    onBackground = DarkOnBackground,
+    onSurface = DarkOnSurface,
+    error = DarkError,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = Color(0xFF94A3B8)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF4F46E5),
-    secondary = Color(0xFF6366F1),
-    tertiary = Color(0xFF818CF8),
-    background = Color(0xFFF5F7FB),
-    surface = Color.White,
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1F2937),
-    onSurface = Color(0xFF1F2937)
+    primary = LightPrimary,
+    onPrimary = LightOnPrimary,
+    primaryContainer = LightPrimaryContainer,
+    secondary = LightSecondary,
+    tertiary = LightTertiary,
+    background = LightBackground,
+    surface = LightSurface,
+    onBackground = LightOnBackground,
+    onSurface = LightOnSurface,
+    error = LightError
 )
 
 @Composable
 fun WebSSHTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
 

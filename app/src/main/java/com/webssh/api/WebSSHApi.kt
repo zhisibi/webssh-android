@@ -127,7 +127,9 @@ data class ServerRequest(
     val authType: String,
     val password: String,
     val tags: List<String>,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val privateKey: String? = null,
+    val passphrase: String? = null
 )
 
 data class ServerResponse(val success: Boolean, val message: String, val id: Long?)

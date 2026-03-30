@@ -65,6 +65,14 @@ fun FileManagerScreen(
     var selectedFile by remember { mutableStateOf<FileItem?>(null) }
     var newFolderName by remember { mutableStateOf("") }
     var newFileName by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+
+    // Filter files by search query
+    val displayFiles = remember(files, searchQuery) {
+        if (searchQuery.isBlank()) files
+        else files.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
 
     // File picker for upload
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -86,6 +94,18 @@ fun FileManagerScreen(
                 title = {
                     if (batchMode) {
                         Text("已选 ${selectedFiles.size} 项", style = MaterialTheme.typography.titleMedium)
+                    } else if (showSearch) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("搜索文件...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                            )
+                        )
                     } else {
                         Column {
                             Text(serverName, style = MaterialTheme.typography.titleMedium)
@@ -95,7 +115,9 @@ fun FileManagerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (batchMode) onClearSelection() else onBack()
+                        if (batchMode) onClearSelection()
+                        else if (showSearch) { showSearch = false; searchQuery = "" }
+                        else onBack()
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
@@ -114,6 +136,9 @@ fun FileManagerScreen(
                             Icon(Icons.Default.Close, contentDescription = "取消选择")
                         }
                     } else {
+                        IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
+                            Icon(if (showSearch) Icons.Default.Close else Icons.Default.Search, contentDescription = "搜索")
+                        }
                         IconButton(onClick = onOpenSshTerminal) {
                             Icon(Icons.Default.Computer, contentDescription = "SSH终端")
                         }
@@ -123,7 +148,6 @@ fun FileManagerScreen(
                         IconButton(onClick = { showCreateDialog = true }) {
                             Icon(Icons.Default.CreateNewFolder, contentDescription = "新建文件夹")
                         }
-                        // Batch mode toggle
                         if (files.any { it.type == "file" }) {
                             IconButton(onClick = onToggleBatchMode) {
                                 Icon(Icons.Default.Checklist, contentDescription = "批量选择")
@@ -141,10 +165,7 @@ fun FileManagerScreen(
                 BottomAppBar(
                     actions = {
                         Spacer(modifier = Modifier.weight(1f))
-                        Button(
-                            onClick = onBatchDownload,
-                            modifier = Modifier.padding(end = 16.dp)
-                        ) {
+                        Button(onClick = onBatchDownload, modifier = Modifier.padding(end = 16.dp)) {
                             Icon(Icons.Default.Download, null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("下载 ${selectedFiles.size} 个文件 (ZIP)")
@@ -161,7 +182,7 @@ fun FileManagerScreen(
                 .padding(padding)
         ) {
             // Sort chips
-            if (!batchMode) {
+            if (!batchMode && !showSearch) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -171,11 +192,12 @@ fun FileManagerScreen(
                     SortChip("名称", "name", sortField, sortAsc, onSortChange)
                     SortChip("大小", "size", sortField, sortAsc, onSortChange)
                     SortChip("时间", "mtime", sortField, sortAsc, onSortChange)
+                    SortChip("权限", "mode", sortField, sortAsc, onSortChange)
                 }
             }
 
             // Navigate up
-            if (currentPath != "/" && !batchMode) {
+            if (currentPath != "/" && !batchMode && !showSearch) {
                 ListItem(
                     headlineContent = { Text("..") },
                     leadingContent = { Icon(Icons.Default.Folder, null) },
@@ -189,17 +211,24 @@ fun FileManagerScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-            } else if (files.isEmpty()) {
+            } else if (displayFiles.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                        Icon(
+                            if (searchQuery.isNotBlank()) Icons.Default.SearchOff else Icons.Default.FolderOpen,
+                            null, modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("空文件夹", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (searchQuery.isNotBlank()) "没有匹配的文件" else "空文件夹",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             } else {
                 LazyColumn {
-                    items(files) { file ->
+                    items(displayFiles) { file ->
                         FileListItem(
                             file = file,
                             batchMode = batchMode,
@@ -302,11 +331,21 @@ fun FileListItem(
             Text(text = file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
         supportingContent = {
-            Text(
-                text = formatFileSize(file.size) + " • " + formatTime(file.mtime),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column {
+                Text(
+                    text = formatFileSize(file.size) + " • " + formatTime(file.mtime),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (file.mode.isNotBlank()) {
+                    Text(
+                        text = formatPermissions(file.mode),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
         },
         leadingContent = {
             if (batchMode && file.type != "directory") {
@@ -413,4 +452,18 @@ fun formatFileSize(bytes: Long): String = when {
 
 fun formatTime(timestamp: Long): String {
     return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp * 1000))
+}
+
+fun formatPermissions(mode: String): String {
+    // mode like "100644" or "40755"
+    if (mode.length < 4) return mode
+    val octal = mode.substring(mode.length - 3)
+    val chars = StringBuilder()
+    for (c in octal) {
+        val n = c.digitToIntOrNull() ?: 0
+        chars.append(if (n and 4 != 0) 'r' else '-')
+        chars.append(if (n and 2 != 0) 'w' else '-')
+        chars.append(if (n and 1 != 0) 'x' else '-')
+    }
+    return chars.toString()
 }

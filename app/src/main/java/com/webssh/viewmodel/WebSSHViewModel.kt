@@ -178,13 +178,13 @@ class WebSSHViewModel(
 
     // ==================== Server CRUD ====================
 
-    fun addServer(name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String> = emptyList()) {
+    fun addServer(name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String> = emptyList(), privateKey: String? = null, passphrase: String? = null) {
         viewModelScope.launch {
             try {
                 val token = tokenManager.token.first() ?: return@launch
                 val response = api?.addServer(
                     "Bearer $token",
-                    ServerRequest(name, host, port, username, authType, password, tags, true)
+                    ServerRequest(name, host, port, username, authType, password, tags, true, privateKey, passphrase)
                 )
                 if (response?.isSuccessful == true && response.body()?.success == true) {
                     _toastMessage.value = "服务器添加成功"
@@ -198,14 +198,14 @@ class WebSSHViewModel(
         }
     }
 
-    fun updateServer(id: Long, name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String> = emptyList(), enabled: Boolean = true) {
+    fun updateServer(id: Long, name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String> = emptyList(), enabled: Boolean = true, privateKey: String? = null, passphrase: String? = null) {
         viewModelScope.launch {
             try {
                 val token = tokenManager.token.first() ?: return@launch
                 val response = api?.updateServer(
                     "Bearer $token",
                     id,
-                    ServerRequest(name, host, port, username, authType, password, tags, enabled)
+                    ServerRequest(name, host, port, username, authType, password, tags, enabled, privateKey, passphrase)
                 )
                 if (response?.isSuccessful == true && response.body()?.success == true) {
                     _toastMessage.value = "服务器更新成功"
@@ -320,6 +320,7 @@ class WebSSHViewModel(
             "name" -> if (_sortAsc.value) others.sortedBy { it.name.lowercase() } else others.sortedByDescending { it.name.lowercase() }
             "size" -> if (_sortAsc.value) others.sortedBy { it.size } else others.sortedByDescending { it.size }
             "mtime" -> if (_sortAsc.value) others.sortedBy { it.mtime } else others.sortedByDescending { it.mtime }
+            "mode" -> if (_sortAsc.value) others.sortedBy { it.mode } else others.sortedByDescending { it.mode }
             else -> others
         }
         return sortedDirs + sortedOthers

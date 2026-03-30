@@ -108,11 +108,11 @@ fun MainNavigation() {
         Screen.AddEditServer -> {
             AddEditServerScreen(
                 existingServer = editingServer,
-                onSave = { name, host, port, username, authType, password, tags ->
+                onSave = { name, host, port, username, authType, password, tags, privateKey, passphrase ->
                     if (editingServer != null) {
-                        viewModel.updateServer(editingServer!!.id, name, host, port, username, authType, password, tags, editingServer!!.enabled)
+                        viewModel.updateServer(editingServer!!.id, name, host, port, username, authType, password, tags, editingServer!!.enabled, privateKey, passphrase)
                     } else {
-                        viewModel.addServer(name, host, port, username, authType, password, tags)
+                        viewModel.addServer(name, host, port, username, authType, password, tags, privateKey, passphrase)
                     }
                     currentScreen = Screen.ServerList
                 },

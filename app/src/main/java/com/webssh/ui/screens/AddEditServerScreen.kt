@@ -28,7 +28,7 @@ import com.webssh.api.Server
 @Composable
 fun AddEditServerScreen(
     existingServer: Server? = null,
-    onSave: (name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String>) -> Unit,
+    onSave: (name: String, host: String, port: Int, username: String, authType: String, password: String, tags: List<String>, privateKey: String?, passphrase: String?) -> Unit,
     onDelete: ((Long) -> Unit)? = null,
     onBack: () -> Unit
 ) {
@@ -42,6 +42,9 @@ fun AddEditServerScreen(
     var authType by remember { mutableStateOf(existingServer?.authType ?: "password") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var privateKey by remember { mutableStateOf("") }
+    var passphrase by remember { mutableStateOf("") }
+    var passphraseVisible by remember { mutableStateOf(false) }
     var tagsText by remember { mutableStateOf(existingServer?.tags?.joinToString(", ") ?: "") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -115,6 +118,7 @@ fun AddEditServerScreen(
             )
 
             // 认证方式
+            Text("认证方式", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -133,7 +137,7 @@ fun AddEditServerScreen(
                 )
             }
 
-            // 密码
+            // Password auth fields
             if (authType == "password") {
                 OutlinedTextField(
                     value = password,
@@ -153,21 +157,36 @@ fun AddEditServerScreen(
                         }
                     }
                 )
-            } else {
+            }
+
+            // Key auth fields
+            if (authType == "key") {
                 OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text(if (isEditing) "新密钥密码（留空不修改）" else "密钥密码（可选）") },
+                    value = privateKey,
+                    onValueChange = { privateKey = it },
+                    label = { Text(if (isEditing) "私钥（留空不修改）" else "SSH 私钥") },
+                    placeholder = { Text("-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 120.dp),
+                    singleLine = false,
+                    maxLines = 8
+                )
+
+                OutlinedTextField(
+                    value = passphrase,
+                    onValueChange = { passphrase = it },
+                    label = { Text("密钥密码（可选）") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    visualTransformation = if (passphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        IconButton(onClick = { passphraseVisible = !passphraseVisible }) {
                             Icon(
-                                imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                contentDescription = if (passwordVisible) "隐藏" else "显示"
+                                imageVector = if (passphraseVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = if (passphraseVisible) "隐藏" else "显示"
                             )
                         }
                     }
@@ -193,7 +212,10 @@ fun AddEditServerScreen(
             Button(
                 onClick = {
                     val tags = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                    onSave(name, host, port.toIntOrNull() ?: 22, username, authType, password, tags)
+                    val pw = if (authType == "key") passphrase else password
+                    val pk = if (authType == "key") privateKey else null
+                    val pp = if (authType == "key" && passphrase.isNotBlank()) passphrase else null
+                    onSave(name, host, port.toIntOrNull() ?: 22, username, authType, pw, tags, pk, pp)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
