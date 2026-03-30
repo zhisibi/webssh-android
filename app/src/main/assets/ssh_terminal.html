@@ -12,11 +12,11 @@ html, body {
   position: fixed; top: 0; left: 0;
 }
 #terminal {
-  width: 100%; height: 65vh; background: #1e1e1e;
+  width: 100%; background: #1e1e1e;
+  /* height set dynamically by JS */
 }
 .xterm { padding: 4px; }
 
-/* Toolbar at bottom */
 #toolbar {
   position: fixed; bottom: 0; left: 0; right: 0;
   background: #2d2d2d; height: 40px;
@@ -54,7 +54,6 @@ html, body {
 <div id="terminal"></div>
 <div id="status">正在加载终端...</div>
 
-<!-- Toolbar fixed at bottom -->
 <div id="toolbar">
   <button class="key-btn ctrl" data-key="ctrl">⌃Ctrl</button>
   <button class="key-btn" data-key="tab">⇥Tab</button>
@@ -82,22 +81,19 @@ html, body {
 <script>
 (function() {
   var statusEl = document.getElementById('status');
+  var termEl = document.getElementById('terminal');
+  var TOOLBAR_H = 40;
   var wsUrl = '%WS_URL%';
   var ctrlMode = false;
   var ws = null;
-  var termEl = document.getElementById('terminal');
+  var fitBusy = false;
 
   try {
     var term = new Terminal({
-      cursorBlink: true,
-      fontSize: 7,
+      cursorBlink: true, fontSize: 7,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       scrollback: 5000,
-      theme: {
-        background: '#1e1e1e', foreground: '#f0f0f0',
-        cursor: '#ffffff', cursorAccent: '#1e1e1e',
-        selectionBackground: '#264f78'
-      }
+      theme: { background:'#1e1e1e', foreground:'#f0f0f0', cursor:'#ffffff', cursorAccent:'#1e1e1e', selectionBackground:'#264f78' }
     });
 
     var fitAddon = new FitAddon.FitAddon();
@@ -105,131 +101,100 @@ html, body {
     term.open(termEl);
     statusEl.style.display = 'none';
 
-    // ===== Size Management =====
-    function updateSize() {
-      var toolbarH = 40;
-      var viewH = window.visualViewport
+    // ===== KEY FIX: dynamic height =====
+    function getVisibleH() {
+      return window.visualViewport
         ? window.visualViewport.height
         : window.innerHeight;
-      var termH = Math.max(100, viewH - toolbarH);
-      termEl.style.height = termH + 'px';
-      setTimeout(function() {
-        try { fitAddon.fit(); } catch(e) {}
-        try { term.scrollToBottom(); } catch(e) {}
-      }, 60);
     }
 
-    // Initial
-    updateSize();
+    function resize() {
+      var h = getVisibleH() - TOOLBAR_H;
+      if (h < 50) h = 50;
+      termEl.style.height = h + 'px';
+      if (!fitBusy) {
+        fitBusy = true;
+        requestAnimationFrame(function() {
+          try { fitAddon.fit(); } catch(e) {}
+          try { term.scrollToBottom(); } catch(e) {}
+          fitBusy = false;
+        });
+      }
+    }
 
-    // React to keyboard show/hide
+    resize();
+
+    // visualViewport fires when keyboard appears/disappears
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateSize);
+      window.visualViewport.addEventListener('resize', resize);
+      window.visualViewport.addEventListener('scroll', resize);
     }
-    window.addEventListener('resize', updateSize);
+    window.addEventListener('resize', resize);
 
-    // Also use ResizeObserver for reliability
-    if (typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(updateSize).observe(document.body);
-    }
-
-    // Auto-scroll after every write
-    var _write = term.write.bind(term);
-    term.write = function(d) { _write(d); try { term.scrollToBottom(); } catch(e) {} };
+    // Auto-scroll on output
+    var _w = term.write.bind(term);
+    term.write = function(d) { _w(d); try { term.scrollToBottom(); } catch(e) {} };
 
     // ===== WebSocket =====
-    function sendData(data) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        try { ws.send(JSON.stringify({ type: 'data', data: data })); } catch(e) {}
-      }
+    function send(d) {
+      if (ws && ws.readyState === WebSocket.OPEN)
+        try { ws.send(JSON.stringify({type:'data',data:d})); } catch(e) {}
     }
 
-    term.onData(function(data) {
-      if (ctrlMode && data.length === 1) {
-        var c = data.charCodeAt(0);
-        if (c >= 97 && c <= 122) {
-          sendData(String.fromCharCode(c - 96));
-          ctrlMode = false; updateCtrlBtn();
-          return;
-        }
+    term.onData(function(d) {
+      if (ctrlMode && d.length===1) {
+        var c=d.charCodeAt(0);
+        if (c>=97&&c<=122) { send(String.fromCharCode(c-96)); ctrlMode=false; updCtrl(); return; }
       }
-      sendData(data);
+      send(d);
     });
 
     function connect() {
-      statusEl.textContent = '连接中...';
-      statusEl.style.display = 'block';
-      try { ws = new WebSocket(wsUrl); } catch(e) {
-        term.write('\r\n\x1b[31m[连接失败: ' + e.message + ']\x1b[0m\r\n');
-        statusEl.style.display = 'none';
+      statusEl.style.display='block'; statusEl.textContent='连接中...';
+      try { ws=new WebSocket(wsUrl); } catch(e) {
+        term.write('\r\n\x1b[31m[连接失败]\x1b[0m\r\n');
+        statusEl.style.display='none';
         try { AndroidBridge.onError(e.message); } catch(x) {}
         return;
       }
-      ws.onopen = function() {
-        statusEl.style.display = 'none';
-        try { AndroidBridge.onConnected(); } catch(e) {}
-        sendData(''); // trigger
-        try { ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })); } catch(e) {}
-        setTimeout(updateSize, 300);
+      ws.onopen=function(){
+        statusEl.style.display='none';
+        try{AndroidBridge.onConnected();}catch(e){}
+        try{ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}));}catch(e){}
+        setTimeout(resize,500);
       };
-      ws.onmessage = function(ev) {
-        try {
-          var m = JSON.parse(ev.data);
-          if (m.type === 'data') term.write(m.data);
-          else if (m.type === 'error') {
-            term.write('\r\n\x1b[31m[错误: ' + m.data + ']\x1b[0m\r\n');
-            try { AndroidBridge.onError(m.data); } catch(e) {}
-          }
-          else if (m.type === 'close') {
-            term.write('\r\n\x1b[31m[连接关闭]\x1b[0m\r\n');
-            try { AndroidBridge.onDisconnected(m.data || ''); } catch(e) {}
-          }
-        } catch(e) { term.write(ev.data); }
+      ws.onmessage=function(ev){
+        try{var m=JSON.parse(ev.data);
+          if(m.type==='data')term.write(m.data);
+          else if(m.type==='error'){term.write('\r\n\x1b[31m[错误:'+m.data+']\x1b[0m\r\n');try{AndroidBridge.onError(m.data);}catch(e){}}
+          else if(m.type==='close'){term.write('\r\n\x1b[31m[关闭]\x1b[0m\r\n');try{AndroidBridge.onDisconnected(m.data||'');}catch(e){}}
+        }catch(e){term.write(ev.data);}
       };
-      ws.onclose = function() {
-        term.write('\r\n\x1b[31m[连接断开]\x1b[0m\r\n');
-        try { AndroidBridge.onDisconnected('closed'); } catch(e) {}
-      };
-      ws.onerror = function() {
-        term.write('\r\n\x1b[31m[连接错误]\x1b[0m\r\n');
-        try { AndroidBridge.onError('ws error'); } catch(e) {}
-      };
+      ws.onclose=function(){term.write('\r\n\x1b[31m[断开]\x1b[0m\r\n');try{AndroidBridge.onDisconnected('closed');}catch(e){}};
+      ws.onerror=function(){term.write('\r\n\x1b[31m[错误]\x1b[0m\r\n');try{AndroidBridge.onError('ws error');}catch(e){}};
     }
 
     // ===== Toolbar =====
-    var keyMap = {
-      'tab':'\t', 'escape':'\x1b',
-      '/':'/', '-':'-', '~':'~', '|':'|',
-      'up':'\x1b[A', 'down':'\x1b[B',
-      'right':'\x1b[C', 'left':'\x1b[D',
-      'home':'\x1bOH', 'end':'\x1bOF',
-      'pgup':'\x1b[5~', 'pgdown':'\x1b[6~',
-      'F1':'\x1bOP', 'F2':'\x1bOQ', 'F3':'\x1bOR',
-      'F10':'\x1b[21~', 'F12':'\x1b[24~'
-    };
+    var KM={tab:'\t',escape:'\x1b','/':'/','-':'-','~':'~','|':'|',
+      up:'\x1b[A',down:'\x1b[B',right:'\x1b[C',left:'\x1b[D',
+      home:'\x1bOH',end:'\x1bOF',pgup:'\x1b[5~',pgdown:'\x1b[6~',
+      F1:'\x1bOP',F2:'\x1bOQ',F3:'\x1bOR',F10:'\x1b[21~',F12:'\x1b[24~'};
 
-    function updateCtrlBtn() {
-      var b = document.querySelector('[data-key="ctrl"]');
-      if (b) {
-        b.style.background = ctrlMode ? '#6a4a2a' : '#2a3a4a';
-        b.style.borderColor = ctrlMode ? '#aa7a3a' : '#3a5a7a';
-        b.style.color = ctrlMode ? '#ffcc00' : '#ddd';
-      }
+    function updCtrl(){
+      var b=document.querySelector('[data-key="ctrl"]');
+      if(b){b.style.background=ctrlMode?'#6a4a2a':'#2a3a4a';b.style.borderColor=ctrlMode?'#aa7a3a':'#3a5a7a';b.style.color=ctrlMode?'#ffcc00':'#ddd';}
     }
 
-    document.getElementById('toolbar').addEventListener('click', function(e) {
-      var btn = e.target.closest('.key-btn');
-      if (!btn) return;
-      var key = btn.getAttribute('data-key');
-      if (key === 'ctrl') { ctrlMode = !ctrlMode; updateCtrlBtn(); return; }
-      ctrlMode = false; updateCtrlBtn();
-      if (keyMap[key]) sendData(keyMap[key]);
+    document.getElementById('toolbar').addEventListener('click',function(e){
+      var b=e.target.closest('.key-btn'); if(!b) return;
+      var k=b.getAttribute('data-key');
+      if(k==='ctrl'){ctrlMode=!ctrlMode;updCtrl();return;}
+      ctrlMode=false;updCtrl();
+      if(KM[k])send(KM[k]);
     });
 
     connect();
-  } catch(e) {
-    statusEl.textContent = '初始化失败: ' + e.message;
-  }
+  } catch(e) { statusEl.textContent='初始化失败: '+e.message; }
 })();
 </script>
 </body>
